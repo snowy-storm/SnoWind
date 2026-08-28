@@ -1,0 +1,8 @@
+/* Outline labels are computed in document order (see computeOutlineLabels)
+ * and written to data-outline. A child heading restarts under its parent
+ * (1.1, 1.2 then 2.1), instead of continuing a document-wide same-level count. */
+.ProseMirror [data-numbered][data-outline]::before {
+  content: attr(data-outline) " ";
+  font-weight: inherit;
+  pointer-events: none;
+}

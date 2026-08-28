@@ -1,0 +1,111 @@
+services:
+  snowind:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: snowind-hybrid:local
+    container_name: snowind-app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    environment:
+      APP_URL: 'http://localhost:3000'
+      APP_SECRET: 'snowind_hybrid_deployment_secret_key_2026_12345678_abcdef'
+      DATABASE_URL: 'postgresql://snowind:12345678@db:5432/snowind?schema=public'
+      REDIS_URL: 'redis://:12345678@redis:6379'
+      STORAGE_DRIVER: 'local'
+      FILE_UPLOAD_SIZE_LIMIT: '100mb'
+      MAIL_DRIVER: 'smtp'
+      MAIL_FROM_ADDRESS: 'snowind@localhost.local'
+      MAIL_FROM_NAME: 'SnoWind'
+      SMTP_HOST: 'mailhog'
+      SMTP_PORT: '1025'
+      SMTP_USERNAME: 'snowind'
+      SMTP_PASSWORD: '12345678'
+      SMTP_SECURE: 'false'
+      SMTP_IGNORETLS: 'true'
+      DISABLE_TELEMETRY: 'true'
+      DEBUG_MODE: 'false'
+      JWT_TOKEN_EXPIRES_IN: '30d'
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - snowind-net
+    volumes:
+      - snowind_data:/app/data/storage
+
+  db:
+    image: postgres:16-alpine
+    container_name: snowind-db
+    environment:
+      POSTGRES_DB: snowind
+      POSTGRES_USER: snowind
+      POSTGRES_PASSWORD: '12345678'
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snowind -d snowind"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - snowind-net
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: snowind-redis
+    command:
+      - "redis-server"
+      - "--appendonly"
+      - "yes"
+      - "--maxmemory-policy"
+      - "noeviction"
+      - "--requirepass"
+      - "12345678"
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "12345678", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - snowind-net
+    volumes:
+      - redis_data:/data
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: snowind-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+    networks:
+      - snowind-net
+    volumes:
+      - mailhog_data:/mailhog
+
+networks:
+  snowind-net:
+    driver: bridge
+    name: snowind-net
+
+volumes:
+  snowind_data:
+    name: snowind_data
+  db_data:
+    name: snowind_db_data
+  redis_data:
+    name: snowind_redis_data
+  mailhog_data:
+    name: snowind_mailhog_data
