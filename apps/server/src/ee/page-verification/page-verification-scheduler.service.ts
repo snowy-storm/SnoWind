@@ -2,7 +2,7 @@ import { Interval } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
-import { sql } from 'kysely';
+import { sql, SqlBool } from 'kysely';
 import { Queue } from 'bullmq';
 import { KyselyDB } from '@snowind/db/types/kysely.types';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
@@ -43,7 +43,7 @@ export class PageVerificationSchedulerService {
         .where('pageVerifications.expiresAt', '<=', windowEnd)
         .where('pages.deletedAt', 'is', null)
         .where(
-          sql`(workspaces.settings->'pageVerification'->>'enabled') is distinct from 'false'`,
+          sql<SqlBool>`(workspaces.settings->'pageVerification'->>'enabled') is distinct from 'false'`,
         )
         .execute();
 
@@ -70,7 +70,7 @@ export class PageVerificationSchedulerService {
         .where('pageVerifications.expiresAt', '<=', now)
         .where('pages.deletedAt', 'is', null)
         .where(
-          sql`(workspaces.settings->'pageVerification'->>'enabled') is distinct from 'false'`,
+          sql<SqlBool>`(workspaces.settings->'pageVerification'->>'enabled') is distinct from 'false'`,
         )
         .execute();
 
