@@ -1,5 +1,6 @@
-import { atom, type PrimitiveAtom } from "jotai";
+import { atom } from "jotai";
 import type { OnlyOfficeEditorRequest } from "./onlyoffice.utils";
 
-export const onlyOfficeEditorAtom: PrimitiveAtom<OnlyOfficeEditorRequest | null> =
-  atom<OnlyOfficeEditorRequest | null>(null);
+export const onlyOfficeEditorAtom = atom(
+  null as OnlyOfficeEditorRequest | null,
+);
