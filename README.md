@@ -80,10 +80,10 @@ sudo usermod -aG docker "$USER"
 ```shell
 mkdir snowind
 cd snowind
-curl -L -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.1/docker-compose.yml
+curl -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.1/docker-compose.yml
 ```
 
-用编辑器打开该文件（例如 `nano docker-compose.yml`），按下一节修改密钥和访问地址。保存后：
+打开文件看第一行：应是以 `#` 开头的 SnoWind 说明。**如果整篇只有 `404: Not Found`，说明下载失败，删掉后重试。** 用编辑器（例如 `nano docker-compose.yml`）按下一节修改密钥和访问地址。保存后：
 
 ```shell
 docker compose up -d
@@ -107,8 +107,13 @@ docker compose logs -f snowind
 ```powershell
 New-Item -ItemType Directory -Force -Path .\snowind | Out-Null
 Set-Location .\snowind
-curl.exe -L -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.1/docker-compose.yml
+if (Test-Path .\docker-compose.yml) { Remove-Item .\docker-compose.yml -Force }
+curl.exe -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.1/docker-compose.yml
+Get-Content .\docker-compose.yml -TotalCount 5
 ```
+
+前几行必须是 SnoWind 的注释（以 `#` 开头），**不能**是 `404: Not Found`。若仍是 404，也可从发行页下载同一文件：  
+https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.1  
 
 用记事本打开 `docker-compose.yml`，按下一节修改密钥和访问地址。保存后，**仍在该文件夹中**执行：
 
@@ -125,7 +130,7 @@ docker compose logs -f snowind
 
 浏览器打开 [http://localhost:3000](http://localhost:3000)，创建第一个管理员账号。
 
-> PowerShell 里请使用 `curl.exe`，不要只用 `curl`（后者可能是 `Invoke-WebRequest` 的别名，参数不同）。
+> 必须使用 `curl.exe -fL`。只写 `curl` 时，PowerShell 可能把它当成别的命令，失败时仍会生成一个假的 yml，里面只有 `404: Not Found`。
 
 ---
 
@@ -197,6 +202,12 @@ docker compose restart          # 重启
 docker compose down             # 停止（数据卷保留，数据还在）
 docker compose down -v          # 停止并删除数据（不可恢复，慎用）
 ```
+
+---
+
+## 下载到的 docker-compose.yml 只有 404
+
+仓库曾是私有时，未登录访问 `raw.githubusercontent.com` 会返回正文 `404: Not Found`，PowerShell 会把它保存成文件。请删掉后用上面带 `-fL` 的命令重下（仓库现已公开）。也可浏览器打开 [v0.1.1 发行页](https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.1) 下载 `docker-compose.yml`。
 
 ---
 
