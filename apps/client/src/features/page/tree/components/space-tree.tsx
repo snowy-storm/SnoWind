@@ -201,7 +201,7 @@ export default function SpaceTree({ spaceId, readOnly }: SpaceTreeProps) {
     [],
   );
   const getDragLabel = useCallback(
-    (n: SpaceTreeNode) => getPageTitle(n.name, n.isBase, t, n.drawingType),
+    (n: SpaceTreeNode) => getPageTitle(n.name, n.isBase, t, n.drawingType, n.fileType),
     [t],
   );
 

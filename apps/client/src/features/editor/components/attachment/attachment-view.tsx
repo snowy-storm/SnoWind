@@ -2,6 +2,7 @@ import { NodeViewProps, NodeViewWrapper } from "@tiptap/react";
 import { Group, Text, Paper, ActionIcon, Loader, Tooltip } from "@mantine/core";
 import { getFileUrl } from "@/lib/config.ts";
 import { IconDownload, IconFileTypePdf, IconPaperclip } from "@tabler/icons-react";
+import { OpenInOnlyOfficeButton } from "@/features/onlyoffice/open-in-onlyoffice-button.tsx";
 import { useHover } from "@mantine/hooks";
 import { formatBytes } from "@/lib";
 import { useTranslation } from "react-i18next";
@@ -66,6 +67,12 @@ export default function AttachmentView(props: NodeViewProps) {
 
           {url && (selected || hovered) && (
             <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
+              <OpenInOnlyOfficeButton
+                attachmentId={attachmentId}
+                fileName={name}
+                mimeType={mime}
+                url={url}
+              />
               {isPdf && editor.isEditable && (
                 <Tooltip label={t("Embed as PDF")} position="top" withinPortal={false}>
                   <ActionIcon variant="default" aria-label={t("Embed as PDF")} onClick={handleEmbedAsPdf}>

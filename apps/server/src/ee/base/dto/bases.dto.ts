@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { IsOptional, IsString, IsNotEmpty, IsArray, IsObject, IsEnum, IsNumber, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty, IsArray, IsObject, IsEnum, IsNumber, IsBoolean, ArrayNotEmpty } from 'class-validator';
 import { PaginationOptions } from '@snowind/db/pagination/pagination-options';
 import { Transform, Type } from 'class-transformer';
 
@@ -58,6 +58,21 @@ export class ConvertBaseDto {
   @IsString()
   @IsEnum(['kanban'])
   template?: 'kanban';
+}
+
+export class ConvertSpreadsheetPageDto {
+  @IsString()
+  @IsNotEmpty()
+  pageId: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  sheetNames: string[];
+
+  @IsBoolean()
+  @Transform(({ value }) => value === true || value === 'true')
+  keepOriginal: boolean;
 }
 
 export class ListBasesDto {

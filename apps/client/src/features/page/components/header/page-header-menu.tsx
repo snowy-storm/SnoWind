@@ -26,7 +26,7 @@ import { useDisclosure, useHotkeys } from "@mantine/hooks";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useParams } from "react-router-dom";
 import { usePageQuery } from "@/features/page/queries/page-query.ts";
-import { buildPageUrl } from "@/features/page/page.utils.ts";
+import { buildPageUrl, isFilePage } from "@/features/page/page.utils.ts";
 import { notifications } from "@mantine/notifications";
 import { getAppUrl } from "@/lib/config.ts";
 import { extractPageSlugId } from "@/lib";
@@ -73,7 +73,7 @@ export default function PageHeaderMenu({ readOnly }: PageHeaderMenuProps) {
     pageId: extractPageSlugId(pageSlug),
   });
   const isDeleted = !!page?.deletedAt;
-  const hideDocChrome = !!page?.isBase || !!page?.drawingType;
+  const hideDocChrome = !!page?.isBase || !!page?.drawingType || isFilePage(page);
 
   useHotkeys(
     [
@@ -108,16 +108,18 @@ export default function PageHeaderMenu({ readOnly }: PageHeaderMenuProps) {
 
       <PageShareModal readOnly={readOnly} />
 
-      <Tooltip label={t("Comments")} openDelay={250} withArrow>
-        <ActionIcon
-          variant="subtle"
-          color="dark"
-          aria-label={t("Comments")}
-          {...commentsTriggerProps}
-        >
-          <IconMessage size={20} stroke={2} />
-        </ActionIcon>
-      </Tooltip>
+      {!isFilePage(page) && (
+        <Tooltip label={t("Comments")} openDelay={250} withArrow>
+          <ActionIcon
+            variant="subtle"
+            color="dark"
+            aria-label={t("Comments")}
+            {...commentsTriggerProps}
+          >
+            <IconMessage size={20} stroke={2} />
+          </ActionIcon>
+        </Tooltip>
+      )}
 
       {!hideDocChrome && (
         <Tooltip label={t("Table of contents")} openDelay={250} withArrow>
@@ -173,7 +175,7 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
   const { data: watchStatus } = useWatchStatusQuery(page?.id);
   const watchPage = useWatchPageMutation();
   const unwatchPage = useUnwatchPageMutation();
-  const hideDocChrome = !!page?.isBase || !!page?.drawingType;
+  const hideDocChrome = !!page?.isBase || !!page?.drawingType || isFilePage(page);
 
   const handleCopyLink = () => {
     const pageUrl =
@@ -292,7 +294,7 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
             </Menu.Item>
           )}
 
-          {!page?.isBase && (
+          {!page?.isBase && !isFilePage(page) && (
             <Menu.Item
               leftSection={<IconHistory size={16} />}
               onClick={openHistoryModal}
@@ -301,7 +303,7 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
             </Menu.Item>
           )}
 
-          {!page?.isBase && (
+          {!page?.isBase && !isFilePage(page) && (
             <Menu.Item
               leftSection={<IconPaperclip size={16} />}
               onClick={openAttachmentsModal}
@@ -328,19 +330,23 @@ function PageActionMenu({ readOnly }: PageActionMenuProps) {
             </Menu.Item>
           )}
 
-          <Menu.Item
-            leftSection={<IconFileExport size={16} />}
-            onClick={openExportModal}
-          >
-            {t("Export")}
-          </Menu.Item>
+          {!isFilePage(page) && (
+            <Menu.Item
+              leftSection={<IconFileExport size={16} />}
+              onClick={openExportModal}
+            >
+              {t("Export")}
+            </Menu.Item>
+          )}
 
-          <Menu.Item
-            leftSection={<IconPrinter size={16} />}
-            onClick={handlePrint}
-          >
-            {t("Print PDF")}
-          </Menu.Item>
+          {!isFilePage(page) && (
+            <Menu.Item
+              leftSection={<IconPrinter size={16} />}
+              onClick={handlePrint}
+            >
+              {t("Print PDF")}
+            </Menu.Item>
+          )}
 
           {!readOnly && (
             <>

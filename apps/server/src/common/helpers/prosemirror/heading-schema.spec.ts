@@ -1,4 +1,9 @@
-import { htmlToJson, jsonToHtml } from '../../../collaboration/collaboration.util';
+import { getSchema } from '@tiptap/core';
+import {
+  htmlToJson,
+  jsonToHtml,
+  tiptapExtensions,
+} from '../../../collaboration/collaboration.util';
 import { computeOutlineLabels, htmlToMarkdown } from '@snowind/editor-ext';
 
 const findFirstChild = (
@@ -31,6 +36,16 @@ const headingHtml = (level: number, text: string) =>
     : `<h6 data-level="${level}">${text}</h6>`;
 
 describe('heading levels 1–9', () => {
+  it('defaults an empty document to a paragraph, not heading 1', () => {
+    const schema = getSchema(tiptapExtensions);
+    expect(schema.topNodeType.contentMatch.defaultType?.name).toBe(
+      'paragraph',
+    );
+    expect(schema.topNodeType.createAndFill()?.firstChild?.type.name).toBe(
+      'paragraph',
+    );
+  });
+
   it.each([1, 2, 3, 4, 5, 6] as const)(
     'parses and re-serializes h%i',
     (level) => {

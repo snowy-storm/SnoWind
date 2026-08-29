@@ -19,8 +19,7 @@ import ExportModal from "@/components/common/export-modal";
 import MovePageModal from "@/features/page/components/move-page-modal.tsx";
 import CopyPageModal from "@/features/page/components/copy-page-modal.tsx";
 import { useDeletePageModal } from "@/features/page/hooks/use-delete-page-modal.tsx";
-import { buildPageUrl } from "@/features/page/page.utils.ts";
-import { getPageTitle } from "@/features/page/page.utils";
+import { buildPageUrl, getPageTitle, isFilePage } from "@/features/page/page.utils.ts";
 import { duplicatePage } from "@/features/page/services/page-service.ts";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { getAppUrl } from "@/lib/config.ts";
@@ -128,7 +127,7 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
             variant="subtle"
             color="gray"
             className={classes.actionIcon}
-            aria-label={t("Page menu for {{name}}", { name: getPageTitle(node.name, node.isBase, t, node.drawingType) })}
+            aria-label={t("Page menu for {{name}}", { name: getPageTitle(node.name, node.isBase, t, node.drawingType, node.fileType) })}
             tabIndex={-1}
             onClick={(e) => {
               e.preventDefault();
@@ -171,16 +170,18 @@ export function NodeMenu({ node, canEdit }: NodeMenuProps) {
             {isFavorited ? t("Remove from favorites") : t("Add to favorites")}
           </Menu.Item>
 
-          <Menu.Item
-            leftSection={<IconFileExport size={16} />}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openExportModal();
-            }}
-          >
-            {t("Export page")}
-          </Menu.Item>
+          {!isFilePage(node) && (
+            <Menu.Item
+              leftSection={<IconFileExport size={16} />}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openExportModal();
+              }}
+            >
+              {t("Export page")}
+            </Menu.Item>
+          )}
 
           {canEdit && (
             <>

@@ -14,6 +14,7 @@ export function getPageTitle(
   title: string | null | undefined,
   isBase?: boolean,
   drawingType?: string | null,
+  fileType?: string | null,
 ): string {
   if (title) return title;
   if (isBase) return 'Untitled base';

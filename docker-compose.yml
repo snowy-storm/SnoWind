@@ -1,24 +1,22 @@
-# SnoWind v0.95.0 — official Docker Compose install
+# =============================================================================
+# SnoWind v0.1.1 — 仅需本文件即可部署（无需克隆源码、无需单独 .env）
 #
-# App:        http://localhost:3000
-# PostgreSQL: localhost:5435
-# Redis:      localhost:6379
+# 安装者只需：
+#   1. 把本文件放到一个空文件夹里
+#   2. 用记事本 / nano / notepad 改下面「请修改」的几处
+#   3. 在该文件夹里执行：  docker compose up -d
 #
-# Install:
-#   1. copy .env.example .env     (Linux/macOS: cp .env.example .env)
-#   2. Set APP_SECRET in .env to a random string of at least 32 characters
-#   3. docker compose up -d --build
-#   4. Open http://localhost:3000 and create the first admin account
+# 浏览器打开：http://本机或服务器IP:3000
+# OnlyOffice（Office 预览/编辑）：http://本机或服务器IP:8080
+#
+# 首次启动会下载镜像，OnlyOffice 体积较大，请耐心等待。
+# =============================================================================
 
 name: snowind
 
 services:
   snowind:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: snowind:0.95.0
-    container_name: snowind-app
+    image: ghcr.io/snowy-storm/snowind:0.1.1
     depends_on:
       db:
         condition: service_healthy
@@ -26,24 +24,40 @@ services:
         condition: service_healthy
       typesense:
         condition: service_started
-    env_file:
-      - path: .env
-        required: false
+      onlyoffice:
+        condition: service_started
     environment:
-      APP_URL: ${APP_URL:-http://localhost:3000}
+      # 浏览器访问地址。本机试用保持 localhost；
+      # 若用服务器 IP 或域名访问，请改成例如 http://192.168.1.10:3000 或 https://wiki.example.com
+      APP_URL: "http://localhost:3000"
       PORT: "3000"
-      APP_SECRET: ${APP_SECRET:-snowind_official_release_secret_change_me_32plus_chars}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-snowind}:${POSTGRES_PASSWORD:-snowind_db_change_me_2026}@db:5432/${POSTGRES_DB:-snowind}?schema=public
-      REDIS_URL: redis://redis:6379
-      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+
+      # 【请修改】至少 32 个字符的随机密钥。生产环境务必改掉。
+      # Linux 可生成：  openssl rand -hex 32
+      APP_SECRET: "ChangeMeToARandomStringAtLeast32CharsLong"
+
+      # 下面数据库密码必须与 db 服务里的 POSTGRES_PASSWORD 完全一致
+      DATABASE_URL: "postgresql://snowind:ChangeMeDbPassword2026@db:5432/snowind?schema=public"
+      REDIS_URL: "redis://redis:6379"
+
+      STORAGE_DRIVER: local
+      MAIL_DRIVER: log
+      MAIL_FROM_ADDRESS: hello@example.com
+      MAIL_FROM_NAME: SnoWind
+      DISABLE_TELEMETRY: "true"
+
       SEARCH_DRIVER: typesense
       TYPESENSE_URL: http://typesense:8108
-      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY:-snowind_typesense_change_me_2026}
-      TYPESENSE_LOCALE: ${TYPESENSE_LOCALE:-zh}
-      MAIL_DRIVER: ${MAIL_DRIVER:-log}
-      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-hello@example.com}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SnoWind}
-      DISABLE_TELEMETRY: ${DISABLE_TELEMETRY:-false}
+      # 【请修改】搜索引擎密钥，须与 typesense 服务的 --api-key 一致
+      TYPESENSE_API_KEY: "ChangeMeTypesenseKey2026"
+      TYPESENSE_LOCALE: zh
+
+      # 浏览器访问 OnlyOffice 的地址。远程访问时改成 http://服务器IP:8080
+      ONLYOFFICE_URL: "http://localhost:8080"
+      # 【请修改】须与 onlyoffice 服务的 JWT_SECRET 完全一致（至少 32 字符）
+      ONLYOFFICE_JWT_SECRET: "ChangeMeOnlyOfficeJwtSecret32chars"
+      # 容器之间互访，一般不用改
+      ONLYOFFICE_APP_URL: "http://snowind:3000"
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -58,15 +72,13 @@ services:
 
   db:
     image: postgres:16-alpine
-    container_name: snowind-db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-snowind}
-      POSTGRES_USER: ${POSTGRES_USER:-snowind}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-snowind_db_change_me_2026}
-    ports:
-      - "5435:5432"
+      POSTGRES_DB: snowind
+      POSTGRES_USER: snowind
+      # 【请修改】须与上面 DATABASE_URL 里的密码完全一致
+      POSTGRES_PASSWORD: ChangeMeDbPassword2026
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-snowind} -d ${POSTGRES_DB:-snowind}"]
+      test: ["CMD-SHELL", "pg_isready -U snowind -d snowind"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -76,10 +88,7 @@ services:
 
   redis:
     image: redis:7.2-alpine
-    container_name: snowind-redis
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -91,19 +100,39 @@ services:
 
   typesense:
     image: typesense/typesense:27.1
-    container_name: snowind-typesense
     command:
       - "--data-dir"
       - "/data"
       - "--api-key"
-      - "${TYPESENSE_API_KEY:-snowind_typesense_change_me_2026}"
+      - "ChangeMeTypesenseKey2026"
       - "--enable-cors"
     restart: unless-stopped
     volumes:
       - typesense_data:/data
+
+  onlyoffice:
+    image: onlyoffice/documentserver:8.3
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ChangeMeOnlyOfficeJwtSecret32chars
+      JWT_HEADER: Authorization
+      JWT_IN_BODY: "true"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      ALLOW_META_IP_ADDRESS: "true"
+      USE_UNAUTHORIZED_STORAGE: "true"
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_lib:/var/lib/onlyoffice
+      - onlyoffice_logs:/var/log/onlyoffice
 
 volumes:
   snowind_data:
   db_data:
   redis_data:
   typesense_data:
+  onlyoffice_data:
+  onlyoffice_lib:
+  onlyoffice_logs:

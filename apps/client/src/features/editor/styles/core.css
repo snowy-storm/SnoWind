@@ -318,6 +318,20 @@
   margin-bottom: 0.75em;
 }
 
+.file-page-title .ProseMirror {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.file-page-title .ProseMirror h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin: 0;
+  text-align: start;
+}
+
 /* The full-page base view positions its title with its own outer
  * wrapper padding (so it can align with the table below). The global
  * 3rem .ProseMirror padding-x would push the title further in than
@@ -339,6 +353,10 @@
 }
 
 .drawing-page-root {
+  height: calc(100dvh - var(--app-shell-header-height, 45px));
+}
+
+.pdf-page-root {
   height: calc(100dvh - var(--app-shell-header-height, 45px));
 }
 

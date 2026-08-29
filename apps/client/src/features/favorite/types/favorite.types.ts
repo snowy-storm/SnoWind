@@ -16,6 +16,7 @@ export type IFavorite = {
     icon: string | null;
     isBase: boolean;
     drawingType?: string | null;
+    fileType?: string | null;
     spaceId: string;
   };
   space?: {

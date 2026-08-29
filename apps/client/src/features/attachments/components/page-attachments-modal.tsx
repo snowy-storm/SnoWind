@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { IconDownload } from "@tabler/icons-react";
+import { OpenInOnlyOfficeButton } from "@/features/onlyoffice/open-in-onlyoffice-button.tsx";
 import { useTranslation } from "react-i18next";
 import { SearchInput } from "@/components/common/search-input.tsx";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
@@ -172,6 +173,13 @@ function AttachmentRow({ attachment }: { attachment: IPageAttachment }) {
         </Tooltip>
       )}
 
+      <OpenInOnlyOfficeButton
+        attachmentId={attachment.id}
+        fileName={attachment.fileName}
+        mimeType={attachment.mimeType}
+        url={attachment.url}
+        variant="subtle"
+      />
       <Tooltip label={t("Download attachment")} withArrow>
         <ActionIcon
           component="a"

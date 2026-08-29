@@ -88,7 +88,7 @@ export class EnvironmentService {
   }
 
   getFileImportSizeLimit(): string {
-    return this.configService.get<string>('FILE_IMPORT_SIZE_LIMIT', '200mb');
+    return this.configService.get<string>('FILE_IMPORT_SIZE_LIMIT', '300mb');
   }
 
   getAwsS3AccessKeyId(): string {
@@ -204,6 +204,29 @@ export class EnvironmentService {
       this.configService.get<string>('DRAWIO_URL') ||
       'https://embed.diagrams.net'
     );
+  }
+
+  getOnlyOfficeUrl(): string | undefined {
+    const url = (this.configService.get<string>('ONLYOFFICE_URL') || '').trim();
+    return url ? url.replace(/\/+$/, '') : undefined;
+  }
+
+  getOnlyOfficeJwtSecret(): string | undefined {
+    const secret = (
+      this.configService.get<string>('ONLYOFFICE_JWT_SECRET') || ''
+    ).trim();
+    return secret || undefined;
+  }
+
+  getOnlyOfficeAppUrl(): string {
+    const url = (
+      this.configService.get<string>('ONLYOFFICE_APP_URL') || ''
+    ).trim();
+    return url ? url.replace(/\/+$/, '') : this.getAppUrl();
+  }
+
+  isOnlyOfficeEnabled(): boolean {
+    return Boolean(this.getOnlyOfficeUrl() && this.getOnlyOfficeJwtSecret());
   }
 
   isCloud(): boolean {

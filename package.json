@@ -1,5 +1,5 @@
 {
-    "version":  "0.95.0",
+    "version":  "0.1.1",
     "private":  true,
     "scripts":  {
                     "build":  "nx run-many -t build",
@@ -14,7 +14,7 @@
                     "server:start":  "nx run server:start:prod",
                     "email:dev":  "nx run server:email:dev",
                     "dev":  "cross-env NX_DAEMON=false pnpm concurrently -n \"frontend,backend\" -c \"cyan,green\" \"pnpm run client:dev\" \"pnpm run server:dev\"",
-                    "infra:up":  "docker compose -f docker-compose.dev.yml up -d --wait",
+                    "infra:up":  "docker compose -f docker-compose.dev.yml up -d --build --wait",
                     "infra:down":  "docker compose -f docker-compose.dev.yml down",
                     "infra:logs":  "docker compose -f docker-compose.dev.yml logs -f",
                     "db:migrate":  "pnpm --filter ./apps/server run migration:latest",

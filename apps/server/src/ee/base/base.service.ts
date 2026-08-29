@@ -11,8 +11,12 @@ import { BaseRowRepo } from '@snowind/db/repos/base/base-row.repo';
 import { BaseViewRepo } from '@snowind/db/repos/base/base-view.repo';
 import { PageRepo } from '@snowind/db/repos/page/page.repo';
 import { SpaceRepo } from '@snowind/db/repos/space/space.repo';
+import { AttachmentRepo } from '@snowind/db/repos/attachment/attachment.repo';
+import { StorageService } from '../../integrations/storage/storage.service';
+import * as path from 'path';
 import { InjectKysely } from 'nestjs-kysely';
-import { KyselyDB } from '@snowind/db/types/kysely.types';
+import { KyselyDB, KyselyTransaction } from '@snowind/db/types/kysely.types';
+import { executeTx } from '@snowind/db/utils';
 import {
   BaseProperty,
   BaseRow,
@@ -24,7 +28,11 @@ import {
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { v4 as uuid4 } from 'uuid';
 import { stringify as csvStringify } from 'csv-stringify/sync';
-import { generateSlugId } from '../../common/helpers';
+import { generateBaseChoiceId, generateSlugId } from '../../common/helpers';
+import {
+  cellValueEqual,
+  convertPropertyColumn,
+} from './utils/property-type-conversion';
 import { BaseWsService } from './realtime/base-ws.service';
 import {
   isTableImportFile,
@@ -60,6 +68,8 @@ export class BaseService {
     private readonly pageRepo: PageRepo,
     private readonly spaceRepo: SpaceRepo,
     private readonly baseWs: BaseWsService,
+    private readonly attachmentRepo: AttachmentRepo,
+    private readonly storageService: StorageService,
   ) {}
 
   private genPosition(after?: string): string {
@@ -83,11 +93,16 @@ export class BaseService {
     return page;
   }
 
-  private async markPageAsBase(pageId: string, incrementVersion = true) {
-    const existing = await this.pageRepo.findById(pageId);
+  private async markPageAsBase(
+    pageId: string,
+    incrementVersion = true,
+    trx?: KyselyTransaction,
+  ) {
+    const db = trx ?? this.db;
+    const existing = await this.pageRepo.findById(pageId, { trx });
     if (!existing) throw new NotFoundException('Page not found');
     const next = (existing.baseSchemaVersion ?? 0) + (incrementVersion ? 1 : 0);
-    await this.db
+    await db
       .updateTable('pages')
       .set({
         isBase: true,
@@ -515,21 +530,71 @@ export class BaseService {
     workspaceId: string,
   ) {
     await this.assertPageWorkspace(input.pageId, workspaceId);
-    const updates: any = {};
-    if (input.name !== undefined) updates.name = input.name.trim();
-    if (input.type !== undefined) updates.type = input.type;
-    if (input.typeOptions !== undefined) updates.typeOptions = input.typeOptions;
-    const prop = await this.basePropertyRepo.updateProperty(
+    const existing = await this.basePropertyRepo.findById(
       input.propertyId,
       input.pageId,
-      updates,
     );
-    if (!prop) throw new NotFoundException('Property not found');
-    const schemaVersion = await this.markPageAsBase(input.pageId, true);
+    if (!existing) throw new NotFoundException('Property not found');
+
+    const nextType = input.type ?? existing.type;
+    const typeChanging = input.type !== undefined && input.type !== existing.type;
+
+    const { prop, schemaVersion } = await executeTx(
+      this.db,
+      async (trx) => {
+      let typeOptions = input.typeOptions;
+
+      if (typeChanging) {
+        const rows = await this.baseRowRepo.findByPageId(input.pageId, { trx });
+        const converted = convertPropertyColumn({
+          fromType: existing.type,
+          toType: nextType,
+          fromTypeOptions: existing.typeOptions,
+          toTypeOptions: input.typeOptions ?? {},
+          cells: rows.map(
+            (row) => (row.cells as Record<string, unknown>)?.[input.propertyId],
+          ),
+          generateChoiceId: generateBaseChoiceId,
+        });
+        typeOptions = converted.typeOptions;
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const prev = (row.cells as Record<string, unknown>)?.[input.propertyId];
+          const next = converted.cells[i] ?? null;
+          if (cellValueEqual(prev, next)) continue;
+          await this.baseRowRepo.updateRowCellsMerge(
+            row.id,
+            { [input.propertyId]: next },
+            undefined,
+            { trx },
+          );
+        }
+      }
+
+      const updates: any = {};
+      if (input.name !== undefined) updates.name = input.name.trim();
+      if (input.type !== undefined) updates.type = input.type;
+      if (typeChanging || input.typeOptions !== undefined) {
+        updates.typeOptions = typeOptions;
+      }
+
+      const updated = await this.basePropertyRepo.updateProperty(
+        input.propertyId,
+        input.pageId,
+        updates,
+        { trx },
+      );
+      if (!updated) throw new NotFoundException('Property not found');
+      const schemaVersion = await this.markPageAsBase(input.pageId, true, trx);
+      return { prop: updated, schemaVersion };
+    });
+
     this.broadcast(input.pageId, 'base:property:updated', {
       property: prop,
       schemaVersion,
       requestId: input.requestId,
+      typeConverted: typeChanging,
     });
     return { property: prop, jobId: null };
   }
@@ -858,16 +923,25 @@ export class BaseService {
 
   // --- Table import ---
 
-  private async getNewPagePosition(spaceId: string): Promise<string> {
-    const lastPage = await this.db
+  private async getNewPagePosition(
+    spaceId: string,
+    parentPageId?: string | null,
+  ): Promise<string> {
+    let query = this.db
       .selectFrom('pages')
       .select(['position'])
       .where('spaceId', '=', spaceId)
-      .where('parentPageId', 'is', null)
       .where('deletedAt', 'is', null)
       .orderBy('position', (ob) => ob.collate('C').desc())
-      .limit(1)
-      .executeTakeFirst();
+      .limit(1);
+
+    if (parentPageId) {
+      query = query.where('parentPageId', '=', parentPageId);
+    } else {
+      query = query.where('parentPageId', 'is', null);
+    }
+
+    const lastPage = await query.executeTakeFirst();
 
     if (lastPage?.position) {
       return generateJitteredKeyBetween(lastPage.position, null);
@@ -896,6 +970,10 @@ export class BaseService {
     spaceId: string,
     workspaceId: string,
     user: User,
+    options?: {
+      parentPageId?: string | null;
+      alwaysUseSheetName?: boolean;
+    },
   ): Promise<Page[]> {
     if (!isTableImportFile(filename)) {
       throw new BadRequestException('Invalid import file type.');
@@ -926,14 +1004,15 @@ export class BaseService {
     const displayName =
       (ext ? filename.slice(0, filename.length - ext.length) : filename).trim() ||
       'Untitled base';
-    let pagePosition = await this.getNewPagePosition(spaceId);
+    const parentPageId = options?.parentPageId ?? null;
+    let pagePosition = await this.getNewPagePosition(spaceId, parentPageId);
     const createdPages: Page[] = [];
 
     for (const sheet of parsed.sheets) {
       const title =
-        parsed.totalSheetCount === 1
-          ? displayName
-          : sheet.name?.trim() || displayName;
+        options?.alwaysUseSheetName || parsed.totalSheetCount !== 1
+          ? sheet.name?.trim() || displayName
+          : displayName;
 
       const page = await this.pageRepo.insertPage({
         slugId: generateSlugId(),
@@ -943,6 +1022,7 @@ export class BaseService {
         lastUpdatedById: user.id,
         title,
         position: pagePosition,
+        parentPageId: parentPageId || undefined,
         isBase: true,
         baseSchemaVersion: 1,
       });
@@ -1011,5 +1091,199 @@ export class BaseService {
     }
 
     return createdPages;
+  }
+
+  async listSpreadsheetPageSheets(pageId: string, workspaceId: string) {
+    const { filename, buffer } = await this.readSpreadsheetPageFile(
+      pageId,
+      workspaceId,
+    );
+    return this.listTableSheets(buffer, filename);
+  }
+
+  async convertSpreadsheetPageToBases(
+    pageId: string,
+    sheetNames: string[],
+    keepOriginal: boolean,
+    workspaceId: string,
+    user: User,
+  ): Promise<{ pages: Page[]; deletedOriginal: boolean }> {
+    const sourcePage = await this.pageRepo.findById(pageId, {
+      includeContent: true,
+    });
+    if (!sourcePage || sourcePage.deletedAt) {
+      throw new BadRequestException('Page not found');
+    }
+    if (sourcePage.fileType !== 'spreadsheet') {
+      throw new BadRequestException(
+        'Only spreadsheet file pages can be converted',
+      );
+    }
+    if (sourcePage.workspaceId !== workspaceId) {
+      throw new BadRequestException('Page not found');
+    }
+    if (!sheetNames?.length) {
+      throw new BadRequestException('Select at least one sheet');
+    }
+
+    const { filename, buffer } = await this.readSpreadsheetPageFile(
+      pageId,
+      workspaceId,
+    );
+
+    const createdPages = await this.importTable(
+      buffer,
+      filename,
+      sheetNames,
+      sourcePage.spaceId,
+      workspaceId,
+      user,
+      {
+        parentPageId: sourcePage.id,
+        alwaysUseSheetName: true,
+      },
+    );
+
+    let deletedOriginal = false;
+    if (!keepOriginal) {
+      try {
+        let cursorPos = sourcePage.position;
+        for (const created of createdPages) {
+          const nextSibling = await this.findNextSiblingAfter(
+            sourcePage.spaceId,
+            sourcePage.parentPageId ?? null,
+            cursorPos,
+            created.id,
+          );
+          const siblingPosition = generateJitteredKeyBetween(
+            cursorPos,
+            nextSibling?.position ?? null,
+          );
+          await this.pageRepo.updatePage(
+            {
+              parentPageId: sourcePage.parentPageId ?? null,
+              position: siblingPosition,
+            },
+            created.id,
+          );
+          created.parentPageId = sourcePage.parentPageId ?? null;
+          created.position = siblingPosition;
+          cursorPos = siblingPosition;
+        }
+        await this.pageRepo.removePage(sourcePage.id, user.id, workspaceId);
+        deletedOriginal = true;
+      } catch (err) {
+        this.logger.error(
+          'Converted bases were created but the original spreadsheet page could not be removed',
+          err,
+        );
+        throw new BadRequestException(
+          'Converted pages were created, but the original spreadsheet file could not be deleted',
+        );
+      }
+    }
+
+    const hydrated = await Promise.all(
+      createdPages.map((page) =>
+        this.pageRepo.findById(page.id, {
+          includeSpace: true,
+          includeCreator: true,
+          includeLastUpdatedBy: true,
+        }),
+      ),
+    );
+    const pages = hydrated.map((page, i) => page ?? createdPages[i]);
+
+    return { pages, deletedOriginal };
+  }
+
+  private async readSpreadsheetPageFile(pageId: string, workspaceId: string) {
+    const sourcePage = await this.pageRepo.findById(pageId, {
+      includeContent: true,
+    });
+    if (!sourcePage || sourcePage.deletedAt) {
+      throw new BadRequestException('Page not found');
+    }
+    if (sourcePage.fileType !== 'spreadsheet') {
+      throw new BadRequestException(
+        'Only spreadsheet file pages can be converted',
+      );
+    }
+    if (sourcePage.workspaceId !== workspaceId) {
+      throw new BadRequestException('Page not found');
+    }
+
+    const attachmentId = this.getFileAttachmentIdFromContent(sourcePage.content);
+    if (!attachmentId) {
+      throw new BadRequestException('Spreadsheet file attachment not found');
+    }
+
+    const attachment = await this.attachmentRepo.findById(attachmentId);
+    if (!attachment?.filePath) {
+      throw new BadRequestException('Spreadsheet file attachment not found');
+    }
+
+    let fileBuffer: Buffer;
+    try {
+      fileBuffer = await this.storageService.read(attachment.filePath);
+    } catch (err) {
+      this.logger.error('Failed to read spreadsheet file for conversion', err);
+      throw new BadRequestException('Failed to read spreadsheet file');
+    }
+
+    const filename =
+      attachment.fileName ||
+      `table${path.extname(attachment.filePath || '') || '.xlsx'}`;
+
+    return { filename, buffer: fileBuffer };
+  }
+
+  private getFileAttachmentIdFromContent(content: unknown): string | null {
+    let parsed = content;
+    if (typeof content === 'string') {
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        return null;
+      }
+    }
+    if (!parsed || typeof parsed !== 'object') return null;
+    const doc = parsed as {
+      content?: Array<{ type?: string; attrs?: { attachmentId?: string } }>;
+    };
+    const node = doc.content?.find(
+      (item) =>
+        item?.type === 'pdf' ||
+        item?.type === 'attachment' ||
+        item?.type === 'word',
+    );
+    return typeof node?.attrs?.attachmentId === 'string'
+      ? node.attrs.attachmentId
+      : null;
+  }
+
+  private async findNextSiblingAfter(
+    spaceId: string,
+    parentPageId: string | null,
+    position: string,
+    excludeId: string,
+  ) {
+    let query = this.db
+      .selectFrom('pages')
+      .select(['id', 'position'])
+      .where('spaceId', '=', spaceId)
+      .where('deletedAt', 'is', null)
+      .where('id', '!=', excludeId)
+      .where('position', '>', position)
+      .orderBy('position', (ob) => ob.collate('C').asc())
+      .limit(1);
+
+    if (parentPageId) {
+      query = query.where('parentPageId', '=', parentPageId);
+    } else {
+      query = query.where('parentPageId', 'is', null);
+    }
+
+    return query.executeTakeFirst();
   }
 }

@@ -11,6 +11,7 @@ export type SpaceTreeNode = {
   hasChildren: boolean;
   isBase?: boolean;
   drawingType?: DrawingType | null;
+  fileType?: string | null;
   canEdit?: boolean;
   children: SpaceTreeNode[];
 };

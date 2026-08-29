@@ -1,16 +1,20 @@
 FROM node:26-slim AS base
 LABEL org.opencontainers.image.source="https://github.com/snowy-storm/SnoWind"
 
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
 RUN npm install -g pnpm@11.23.0
 
 FROM base AS builder
+
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 
 WORKDIR /app
 
 COPY . .
 
-RUN npm config set registry https://registry.npmmirror.com \
-  && pnpm config set registry https://registry.npmmirror.com \
+RUN npm config set registry ${NPM_REGISTRY} \
+  && pnpm config set registry ${NPM_REGISTRY} \
   && pnpm install --no-frozen-lockfile
 RUN pnpm build
 
@@ -53,7 +57,9 @@ RUN chown -R node:node /app
 
 USER node
 
-RUN pnpm config set registry https://registry.npmmirror.com \
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+
+RUN pnpm config set registry ${NPM_REGISTRY} \
   && pnpm install --no-frozen-lockfile --prod && rm -rf /home/node/.cache/pnpm
 
 RUN mkdir -p /app/data/storage

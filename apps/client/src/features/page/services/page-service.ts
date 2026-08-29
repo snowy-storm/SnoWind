@@ -165,6 +165,17 @@ export async function importPage(file: File, spaceId: string) {
   return req.data;
 }
 
+export async function convertWordPageToSystemPage(
+  pageId: string,
+  keepOriginal: boolean,
+) {
+  const req = await api.post<{
+    page: IPage;
+    deletedOriginal: boolean;
+  }>("/pages/convert-word", { pageId, keepOriginal });
+  return req.data;
+}
+
 export async function importZip(
   file: File,
   spaceId: string,

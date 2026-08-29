@@ -1,6 +1,6 @@
 export async function readSpreadsheetSheetNames(file: File): Promise<string[]> {
   const mod = await import("xlsx");
-  const XLSX = (mod as { default?: typeof mod }).default ?? mod;
+  const XLSX = (mod as unknown as { default?: typeof mod }).default ?? mod;
   const data = await file.arrayBuffer();
   const workbook = XLSX.read(data, {
     type: "array",

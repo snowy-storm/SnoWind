@@ -104,7 +104,7 @@ const MentionList = forwardRef<any, MentionListProps>((props, ref) => {
         items = items.concat(
           suggestion.pages.map((page) => ({
             id: uuid7(),
-            label: getPageTitle(page.title, page.isBase, t, page.drawingType),
+            label: getPageTitle(page.title, page.isBase, t, page.drawingType, page.fileType),
             entityType: "page",
             entityId: page.id,
             slugId: page.slugId,
@@ -279,7 +279,7 @@ const MentionList = forwardRef<any, MentionListProps>((props, ref) => {
 
       props.command({
         id: uuid7(),
-        label: getPageTitle(createdPage.title, createdPage.isBase, t, createdPage.drawingType),
+        label: getPageTitle(createdPage.title, createdPage.isBase, t, createdPage.drawingType, createdPage.fileType),
         entityType: "page",
         entityId: createdPage.id,
         slugId: createdPage.slugId,

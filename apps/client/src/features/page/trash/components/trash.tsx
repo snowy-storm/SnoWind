@@ -50,6 +50,7 @@ export default function Trash() {
     content: any;
     isBase?: boolean;
     drawingType?: string | null;
+    fileType?: string | null;
   } | null>(null);
   const [modalOpened, setModalOpened] = useState(false);
 
@@ -87,6 +88,7 @@ export default function Trash() {
       content: page.content,
       isBase: page.isBase,
       drawingType: page.drawingType,
+      fileType: page.fileType,
     });
     setModalOpened(true);
   };
@@ -126,10 +128,10 @@ export default function Trash() {
                         style={{ cursor: "pointer" }}
                         onClick={() => handlePageClick(page)}
                       >
-                        <PageListIcon icon={page.icon} isBase={page.isBase} drawingType={page.drawingType} />
+                        <PageListIcon icon={page.icon} isBase={page.isBase} drawingType={page.drawingType} fileType={page.fileType} />
                         <div>
                           <Text fw={500} size="sm" lineClamp={1}>
-                            {getPageTitle(page.title, page.isBase, t, page.drawingType)}
+                            {getPageTitle(page.title, page.isBase, t, page.drawingType, page.fileType)}
                           </Text>
                         </div>
                       </Group>
@@ -208,6 +210,7 @@ export default function Trash() {
           pageTitle={selectedPage.title}
           pageContent={selectedPage.content}
           isBase={selectedPage.isBase}
+          fileType={selectedPage.fileType}
         />
       )}
     </Container>

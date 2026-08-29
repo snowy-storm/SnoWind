@@ -96,7 +96,7 @@ export function PageRow({
         </div>
 
         <div className={classes.pageTitle}>
-          {getPageTitle(page.title, page.isBase, t, page.drawingType)}
+          {getPageTitle(page.title, page.isBase, t, page.drawingType, page.fileType)}
         </div>
       </div>
 

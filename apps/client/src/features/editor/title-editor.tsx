@@ -37,6 +37,7 @@ export interface TitleEditorProps {
   editable: boolean;
   isBase?: boolean;
   drawingType?: string | null;
+  compact?: boolean;
 }
 
 export function TitleEditor({
@@ -47,6 +48,7 @@ export function TitleEditor({
   editable,
   isBase,
   drawingType,
+  compact = false,
 }: TitleEditorProps) {
   const { t } = useTranslation();
   const { mutateAsync: updateTitlePageMutationAsync } =
@@ -117,6 +119,7 @@ export function TitleEditor({
   });
 
   useEffect(() => {
+    if (!spaceSlug || !slugId) return;
     // Canonicalize only the path slug; keep query params (?row=, ?view=
     // deep links) and the hash anchor intact.
     const pageSlug = buildPageUrl(spaceSlug, slugId, title);
@@ -128,7 +131,7 @@ export function TitleEditor({
       },
       { replace: true },
     );
-  }, [title]);
+  }, [title, spaceSlug, slugId]);
 
   const saveTitle = useCallback(() => {
     if (!titleEditor || activePageId !== pageId) return;
@@ -179,12 +182,13 @@ export function TitleEditor({
   }, [pageId, title, titleEditor]);
 
   useEffect(() => {
+    if (compact) return;
     setTimeout(() => {
       // guard against Cannot access view['hasFocus'] error
       if (!titleEditor?.isInitialized) return;
       titleEditor?.commands?.focus("end");
     }, 300);
-  }, [titleEditor]);
+  }, [titleEditor, compact]);
 
   useEffect(() => {
     return () => {
@@ -258,7 +262,7 @@ export function TitleEditor({
   }
 
   return (
-    <div className="page-title">
+    <div className={compact ? "page-title file-page-title" : "page-title"}>
       <EditorContent
         editor={titleEditor}
         onKeyDown={(event) => {

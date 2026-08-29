@@ -65,6 +65,10 @@ export class UpdateWorkspaceDto extends PartialType(CreateWorkspaceDto) {
   allowPersonalSpaces: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  pageVerificationEnabled: boolean;
+
+  @IsOptional()
   @IsString()
   @IsIn(['read', 'edit'])
   defaultPageEditMode: string;

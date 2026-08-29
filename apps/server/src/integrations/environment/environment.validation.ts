@@ -192,6 +192,24 @@ export class EnvironmentVariables {
   OLLAMA_API_URL: string;
 
   @IsOptional()
+  @ValidateIf(
+    (obj) => obj.ONLYOFFICE_URL != '' && obj.ONLYOFFICE_URL != null,
+  )
+  @IsUrl({ protocols: ['http', 'https'], require_tld: false })
+  ONLYOFFICE_URL: string;
+
+  @IsOptional()
+  @IsString()
+  ONLYOFFICE_JWT_SECRET: string;
+
+  @IsOptional()
+  @ValidateIf(
+    (obj) => obj.ONLYOFFICE_APP_URL != '' && obj.ONLYOFFICE_APP_URL != null,
+  )
+  @IsUrl({ protocols: ['http', 'https'], require_tld: false })
+  ONLYOFFICE_APP_URL: string;
+
+  @IsOptional()
   @IsIn(['postgres', 'clickhouse'])
   @IsString()
   EVENT_STORE_DRIVER: string;

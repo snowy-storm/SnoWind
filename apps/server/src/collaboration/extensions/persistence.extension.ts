@@ -127,6 +127,16 @@ export class PersistenceExtension implements Extension {
           return;
         }
 
+        if (
+          page.fileType === 'pdf' ||
+          page.fileType === 'word' ||
+          page.fileType === 'spreadsheet' ||
+          page.fileType === 'slide'
+        ) {
+          page = null;
+          return;
+        }
+
         if (isDeepStrictEqual(tiptapJson, page.content)) {
           page = null;
           return;
@@ -261,7 +271,7 @@ export class PersistenceExtension implements Extension {
    * Refresh `page_transclusions` and `page_transclusion_references` to match
    * the page's current content. Runs outside the page-write transaction and
    * isolates each call so a failure here cannot affect the page save itself.
-   * The diff is idempotent ‚Äî the next save converges if a round drops anything.
+   * The diff is idempotent ù the next save converges if a round drops anything.
    */
   private async syncTransclusion(
     pageId: string,

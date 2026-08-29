@@ -12,6 +12,7 @@ import {
   JwtCollabPayload,
   JwtExchangePayload,
   JwtMfaTokenPayload,
+  JwtOnlyOfficePayload,
   JwtPayload,
   JwtPdfExportDownloadPayload,
   JwtPdfRenderPayload,
@@ -141,6 +142,22 @@ export class TokenService {
       type: JwtType.PDF_EXPORT_DOWNLOAD,
     };
     return this.jwtService.sign(payload, { expiresIn: '1h' });
+  }
+
+  async generateOnlyOfficeToken(opts: {
+    attachmentId: string;
+    workspaceId: string;
+    userId?: string;
+    canEdit: boolean;
+  }): Promise<string> {
+    const payload: JwtOnlyOfficePayload = {
+      attachmentId: opts.attachmentId,
+      workspaceId: opts.workspaceId,
+      userId: opts.userId,
+      canEdit: opts.canEdit,
+      type: JwtType.ONLYOFFICE,
+    };
+    return this.jwtService.sign(payload, { expiresIn: '12h' });
   }
 
   async verifyJwt(token: string, tokenType: string) {

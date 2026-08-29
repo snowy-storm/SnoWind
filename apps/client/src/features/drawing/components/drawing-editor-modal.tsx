@@ -17,6 +17,8 @@ type DrawingEditorModalProps = {
   onClose: () => void;
   title: string;
   isSaving?: boolean;
+  defaultMaximized?: boolean;
+  closeOnClickOutside?: boolean;
   actions?: ReactNode;
   children: ReactNode;
 };
@@ -26,15 +28,17 @@ export function DrawingEditorModal({
   onClose,
   title,
   isSaving,
+  defaultMaximized = true,
+  closeOnClickOutside = false,
   actions,
   children,
 }: DrawingEditorModalProps) {
   const { t } = useTranslation();
-  const [maximized, setMaximized] = useState(true);
+  const [maximized, setMaximized] = useState(defaultMaximized);
 
   useEffect(() => {
-    if (opened) setMaximized(true);
-  }, [opened]);
+    if (opened) setMaximized(defaultMaximized);
+  }, [opened, defaultMaximized]);
 
   useLayoutEffect(() => {
     if (!opened) return;
@@ -53,7 +57,7 @@ export function DrawingEditorModal({
       yOffset={0}
       xOffset={0}
       closeOnEscape={false}
-      closeOnClickOutside={false}
+      closeOnClickOutside={closeOnClickOutside}
       trapFocus={false}
       returnFocus={false}
       aria-label={title}
@@ -61,6 +65,12 @@ export function DrawingEditorModal({
       <Modal.Overlay />
       <Modal.Content
         className={classes.content}
+        onClick={(event) => {
+          if (!closeOnClickOutside || maximized) return;
+          if (event.target === event.currentTarget) {
+            onClose();
+          }
+        }}
         styles={{
           inner: { padding: 0 },
           content: {
@@ -81,6 +91,7 @@ export function DrawingEditorModal({
             classes.shell,
             maximized ? classes.maximized : classes.windowed,
           )}
+          onClick={(event) => event.stopPropagation()}
         >
           <Group
             className={classes.header}

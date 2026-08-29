@@ -15,6 +15,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HelmetProvider } from "react-helmet-async";
 import "./i18n";
 import { PostHogProvider } from "posthog-js/react";
+import { OnlyOfficeEditorHost } from "@/features/onlyoffice/onlyoffice-editor-host.tsx";
 import {
   getPostHogHost,
   getPostHogKey,
@@ -55,6 +56,7 @@ root.render(
           <HelmetProvider>
             <PostHogProvider client={posthog}>
               <App />
+              <OnlyOfficeEditorHost />
             </PostHogProvider>
           </HelmetProvider>
         </QueryClientProvider>

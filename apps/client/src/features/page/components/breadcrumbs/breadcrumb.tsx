@@ -23,7 +23,7 @@ import { useMediaQuery } from "@mantine/hooks";
 import { useTranslation } from "react-i18next";
 
 function getTitle(node: SpaceTreeNode, t: TFunction) {
-  const name = getPageTitle(node.name, node.isBase, t, node.drawingType);
+  const name = getPageTitle(node.name, node.isBase, t, node.drawingType, node.fileType);
   if (node.icon) {
     return `${node.icon} ${name}`;
   }
@@ -85,7 +85,7 @@ export default function Breadcrumb() {
 
   const renderAnchor = useCallback(
     (node: SpaceTreeNode, isCurrent = false) => (
-      <Tooltip label={getPageTitle(node.name, node.isBase, t, node.drawingType)} key={node.id}>
+      <Tooltip label={getPageTitle(node.name, node.isBase, t, node.drawingType, node.fileType)} key={node.id}>
         <Anchor
           component={Link}
           to={buildPageUrl(spaceSlug, node.slugId, node.name)}

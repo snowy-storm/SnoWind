@@ -7,9 +7,8 @@ import { FileTaskProcessor } from './processors/file-task.processor';
 import { ImportAttachmentService } from './services/import-attachment.service';
 import { FileTaskController } from './file-task.controller';
 import { PageModule } from '../../core/page/page.module';
-import { DocxImportService } from '../../ee/document-import/docx-import.service';
-import { PdfImportService } from '../../ee/document-import/pdf-import.service';
 import { ConfluenceImportService } from '../../ee/confluence-import/confluence-import.service';
+import { DocxImportService } from '../../ee/document-import/docx-import.service';
 
 @Module({
   providers: [
@@ -17,9 +16,8 @@ import { ConfluenceImportService } from '../../ee/confluence-import/confluence-i
     FileImportTaskService,
     FileTaskProcessor,
     ImportAttachmentService,
-    DocxImportService,
-    PdfImportService,
     ConfluenceImportService,
+    DocxImportService,
   ],
   exports: [ImportService, ImportAttachmentService],
   controllers: [ImportController, FileTaskController],

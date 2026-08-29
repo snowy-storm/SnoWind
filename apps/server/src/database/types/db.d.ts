@@ -324,6 +324,7 @@ export interface Pages {
   isBase: Generated<boolean>;
   baseSchemaVersion: Generated<number>;
   drawingType: string | null;
+  fileType: string | null;
   isLocked: Generated<boolean>;
   lastUpdatedById: string | null;
   parentPageId: string | null;

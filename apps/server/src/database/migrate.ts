@@ -3,11 +3,12 @@ import { promises as fs } from 'fs';
 import { Kysely, Migrator, FileMigrationProvider } from 'kysely';
 import { run } from 'kysely-migration-cli';
 import * as dotenv from 'dotenv';
-import { envPath, normalizePostgresUrl } from '../common/helpers';
+import { envDevPath, envPath, normalizePostgresUrl } from '../common/helpers';
 import { PostgresJSDialect } from 'kysely-postgres-js';
 import postgres from 'postgres';
 
 dotenv.config({ path: envPath });
+dotenv.config({ path: envDevPath, override: true });
 
 const migrationFolder = path.join(__dirname, './migrations');
 

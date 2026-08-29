@@ -67,9 +67,10 @@ export default function FavoritesPages({ spaceId }: Props) {
                           icon={fav.page.icon}
                           isBase={fav.page.isBase}
                           drawingType={fav.page.drawingType}
+                          fileType={fav.page.fileType}
                         />
                         <Text fw={500} size="md" lineClamp={1}>
-                          {getPageTitle(fav.page.title, fav.page.isBase, t, fav.page.drawingType)}
+                          {getPageTitle(fav.page.title, fav.page.isBase, t, fav.page.drawingType, fav.page.fileType)}
                         </Text>
                       </Group>
                     </UnstyledButton>

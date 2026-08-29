@@ -54,6 +54,19 @@ function describeConversion(
     }
   }
 
+  const CHOICE_TARGETS = new Set<BasePropertyType>([
+    "select",
+    "multiSelect",
+    "status",
+  ]);
+  if (CHOICE_TARGETS.has(to) && !CHOICE_TARGETS.has(from)) {
+    return {
+      message:
+        "Unique cell values will become options, and existing values are preserved.",
+      lossy: false,
+    };
+  }
+
   if (to === "select" && from === "multiSelect") {
     return {
       message:

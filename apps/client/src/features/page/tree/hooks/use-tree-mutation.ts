@@ -21,8 +21,10 @@ import { buildPageUrl } from "@/features/page/page.utils.ts";
 import { getSpaceUrl } from "@/lib/config.ts";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
 import { convertPageToBase } from "@/ee/base/services/base-service";
+import { getPageById } from "@/features/page/services/page-service";
 import { queryClient } from "@/main";
 import { getApiErrorMessage } from "@/lib/api-error";
+import type { IBase } from "@/ee/base/types/base.types";
 
 export type CreatePageOptions = {
   isBase?: boolean;
@@ -162,14 +164,14 @@ export function useTreeMutation(spaceId: string): UseTreeMutation {
 
       if (options?.isBase) {
         try {
-          await convertPageToBase(createdPage.id);
-          createdPage = { ...createdPage, isBase: true };
-          const markAsBase = (old?: IPage) =>
-            old ? { ...old, isBase: true } : createdPage;
-          queryClient.setQueryData<IPage>(["pages", createdPage.id], markAsBase);
+          const base = await convertPageToBase(createdPage.id);
+          queryClient.setQueryData<IBase>(["bases", createdPage.id], base);
+          const fullPage = await getPageById({ pageId: createdPage.id });
+          createdPage = { ...fullPage, isBase: true };
+          queryClient.setQueryData<IPage>(["pages", createdPage.id], createdPage);
           queryClient.setQueryData<IPage>(
             ["pages", createdPage.slugId],
-            markAsBase,
+            createdPage,
           );
         } catch (error) {
           notifications.show({
@@ -188,6 +190,7 @@ export function useTreeMutation(spaceId: string): UseTreeMutation {
         parentPageId: createdPage.parentPageId,
         isBase: createdPage.isBase,
         drawingType: createdPage.drawingType,
+        fileType: createdPage.fileType,
         hasChildren: false,
         children: [],
       };

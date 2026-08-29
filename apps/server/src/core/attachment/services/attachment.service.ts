@@ -27,6 +27,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { QueueJob, QueueName } from '../../../integrations/queue/constants';
 import { Queue } from 'bullmq';
 import { createByteCountingStream } from '../../../common/helpers/utils';
+import { getMimeType, sanitizeFileName } from '../../../common/helpers';
 
 @Injectable()
 export class AttachmentService {
@@ -460,5 +461,67 @@ export class AttachmentService {
     }
 
     await this.workspaceRepo.updateWorkspace({ logo: null }, workspace.id);
+  }
+
+  async replaceFileContent(opts: {
+    attachment: Attachment;
+    buffer: Buffer;
+    fileExt?: string;
+    fileName?: string;
+  }): Promise<Attachment> {
+    const { attachment, buffer } = opts;
+    const nextExt = (opts.fileExt || attachment.fileExt || '').toLowerCase();
+    const nextName =
+      sanitizeFileName(
+        opts.fileName ||
+          (nextExt && !attachment.fileName.toLowerCase().endsWith(nextExt)
+            ? `${attachment.fileName.replace(/\.[^.]+$/, '')}${nextExt}`
+            : attachment.fileName),
+      ).slice(0, 255) || attachment.fileName;
+
+    const folder = getAttachmentFolderPath(
+      AttachmentType.File,
+      attachment.workspaceId,
+    );
+    const nextPath = `${folder}/${attachment.id}/${nextName}`;
+    const previousPath = attachment.filePath;
+
+    await this.uploadToDrive(nextPath, buffer);
+
+    const updated = await this.attachmentRepo.updateAttachment(
+      {
+        filePath: nextPath,
+        fileName: nextName,
+        fileExt: nextExt || attachment.fileExt,
+        fileSize: BigInt(buffer.length),
+        mimeType: getMimeType(nextName),
+        updatedAt: new Date(),
+      },
+      attachment.id,
+    );
+
+    if (previousPath && previousPath !== nextPath) {
+      try {
+        await this.storageService.delete(previousPath);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to delete previous office file ${previousPath}`,
+          err,
+        );
+      }
+    }
+
+    if (['.pdf', '.docx', '.txt'].includes((updated.fileExt || '').toLowerCase())) {
+      await this.attachmentQueue.add(
+        QueueJob.ATTACHMENT_INDEX_CONTENT,
+        { attachmentId: updated.id },
+        {
+          attempts: 2,
+          backoff: { type: 'exponential', delay: 10000 },
+        },
+      );
+    }
+
+    return updated;
   }
 }

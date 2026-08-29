@@ -80,7 +80,7 @@ export function getFileUploadSizeLimit() {
 }
 
 export function getFileImportSizeLimit() {
-  const limit = getConfigValue("FILE_IMPORT_SIZE_LIMIT", "200mb");
+  const limit = getConfigValue("FILE_IMPORT_SIZE_LIMIT", "300mb");
   return bytes(limit);
 }
 
@@ -90,6 +90,15 @@ export function getDrawioUrl() {
   // Empty DRAWIO_URL (common in .env) must not be passed through:
   // react-drawio does `new URL(baseUrl)` and throws on "".
   return getConfigValue("DRAWIO_URL", DEFAULT_DRAWIO_URL) || DEFAULT_DRAWIO_URL;
+}
+
+export function getOnlyOfficeUrl(): string | undefined {
+  const url = getConfigValue("ONLYOFFICE_URL", "")?.trim();
+  return url ? url.replace(/\/+$/, "") : undefined;
+}
+
+export function isOnlyOfficeEnabled(): boolean {
+  return Boolean(getOnlyOfficeUrl());
 }
 
 export function getBillingTrialDays() {

@@ -4,7 +4,11 @@ import sanitize = require('sanitize-filename');
 import { FastifyRequest } from 'fastify';
 import { Readable, Transform } from 'stream';
 
-export const envPath = path.resolve(process.cwd(), '..', '..', '.env');
+const envDir = path.resolve(process.cwd(), '..', '..');
+export const envPath = path.join(envDir, '.env');
+export const envDevPath = path.join(envDir, '.env.dev');
+/** `.env.dev` wins over `.env` so local R&D never hits the official stack. */
+export const envFilePaths = [envDevPath, envPath];
 
 export async function hashPassword(password: string) {
   const saltRounds = 12;

@@ -238,6 +238,7 @@ export class FavoriteRepo {
           'pages.icon',
           'pages.isBase',
           'pages.drawingType',
+          'pages.fileType',
           'pages.spaceId',
         ])
         .whereRef('pages.id', '=', 'favorites.pageId'),

@@ -1,7 +1,7 @@
 import TiptapHeading, {
   HeadingOptions as TiptapHeadingOptions,
 } from "@tiptap/extension-heading";
-import { mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
+import { Extension, mergeAttributes, textblockTypeInputRule } from "@tiptap/core";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { Plugin, type EditorState, type Transaction } from "@tiptap/pm/state";
 import type { Node, NodeType } from "@tiptap/pm/model";
@@ -178,10 +178,75 @@ const applyHeadingLevelDelta = (
   return updated;
 };
 
-export const Heading = TiptapHeading.extend<EditorHeadingOptions>({
-  // Run before Indent (priority 1000) so Tab on a heading changes
-  // the heading level instead of padding-indent.
+/**
+ * Heading node stays at default priority so empty docs still default to
+ * paragraph (`block+` uses the first matching node type). Tab/Enter
+ * handling lives here at 1100 so it still wins over Indent (1000).
+ */
+const HeadingKeymap = Extension.create({
+  name: "headingKeymap",
   priority: 1100,
+
+  addKeyboardShortcuts() {
+    const isInHeading = (): boolean => {
+      if (!this.editor.isActive("heading")) return false;
+      const { $from } = this.editor.state.selection;
+      if ($from.depth === 0) return false;
+      return !hasBlockedAncestor(
+        this.editor.state.doc,
+        $from.before($from.depth),
+      );
+    };
+
+    return {
+      Enter: () => {
+        if (!this.editor.isActive("heading")) return false;
+        const { $from, empty } = this.editor.state.selection;
+        if ($from.parent.type.name !== "heading") return false;
+
+        // Empty heading: just turn it into body text.
+        if (empty && $from.parent.content.size === 0) {
+          return this.editor.commands.setNode("paragraph");
+        }
+
+        // Enter at the start of a heading inserts a body paragraph above
+        // so the heading (and its numbering) stay intact.
+        if (empty && $from.parentOffset === 0) {
+          const insertPos = $from.before($from.depth);
+          return this.editor
+            .chain()
+            .insertContentAt(insertPos, { type: "paragraph" })
+            .focus(insertPos + 1)
+            .run();
+        }
+
+        const chain = this.editor.chain();
+        if (!empty) chain.deleteSelection();
+        return chain.splitBlock().setNode("paragraph").run();
+      },
+      Tab: () => {
+        if (!isInHeading()) return false;
+        return this.editor.commands.changeHeadingLevel(1);
+      },
+      "Shift-Tab": () => {
+        if (!isInHeading()) return false;
+        return this.editor.commands.changeHeadingLevel(-1);
+      },
+      Backspace: () => {
+        const { $from, empty } = this.editor.state.selection;
+        if (!empty) return false;
+        if ($from.parentOffset !== 0) return false;
+        if (!isInHeading()) return false;
+        return this.editor.commands.changeHeadingLevel(-1);
+      },
+    };
+  },
+});
+
+export const Heading = TiptapHeading.extend<EditorHeadingOptions>({
+  addExtensions() {
+    return [HeadingKeymap];
+  },
 
   addOptions() {
     return {
@@ -294,62 +359,6 @@ export const Heading = TiptapHeading.extend<EditorHeadingOptions>({
           if (dispatch) dispatch(tr);
           return true;
         },
-    };
-  },
-
-  addKeyboardShortcuts() {
-    const isInHeading = (): boolean => {
-      if (!this.editor.isActive("heading")) return false;
-      const { $from } = this.editor.state.selection;
-      if ($from.depth === 0) return false;
-      return !hasBlockedAncestor(
-        this.editor.state.doc,
-        $from.before($from.depth),
-      );
-    };
-
-    return {
-      ...this.parent?.(),
-      Enter: () => {
-        if (!this.editor.isActive("heading")) return false;
-        const { $from, empty } = this.editor.state.selection;
-        if ($from.parent.type.name !== "heading") return false;
-
-        // Empty heading: just turn it into body text.
-        if (empty && $from.parent.content.size === 0) {
-          return this.editor.commands.setNode("paragraph");
-        }
-
-        // Enter at the start of a heading inserts a body paragraph above
-        // so the heading (and its numbering) stay intact.
-        if (empty && $from.parentOffset === 0) {
-          const insertPos = $from.before($from.depth);
-          return this.editor
-            .chain()
-            .insertContentAt(insertPos, { type: "paragraph" })
-            .focus(insertPos + 1)
-            .run();
-        }
-
-        const chain = this.editor.chain();
-        if (!empty) chain.deleteSelection();
-        return chain.splitBlock().setNode("paragraph").run();
-      },
-      Tab: () => {
-        if (!isInHeading()) return false;
-        return this.editor.commands.changeHeadingLevel(1);
-      },
-      "Shift-Tab": () => {
-        if (!isInHeading()) return false;
-        return this.editor.commands.changeHeadingLevel(-1);
-      },
-      Backspace: () => {
-        const { $from, empty } = this.editor.state.selection;
-        if (!empty) return false;
-        if ($from.parentOffset !== 0) return false;
-        if (!isInHeading()) return false;
-        return this.editor.commands.changeHeadingLevel(-1);
-      },
     };
   },
 

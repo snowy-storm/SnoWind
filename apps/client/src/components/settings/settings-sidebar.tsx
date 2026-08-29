@@ -25,6 +25,8 @@ import { useAtom } from "jotai";
 import { entitlementAtom } from "@/ee/entitlement/entitlement-atom";
 import { Feature } from "@/ee/features";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
+import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
+import { isWorkspacePageVerificationEnabled } from "@/ee/page-verification/hooks/use-page-verification-enabled";
 import {
   prefetchApiKeyManagement,
   prefetchApiKeys,
@@ -145,6 +147,7 @@ export default function SettingsSidebar() {
   const { goBack } = useSettingsNavigation();
   const { isAdmin, isOwner } = useUserRole();
   const [entitlements] = useAtom(entitlementAtom);
+  const [workspace] = useAtom(workspaceAtom);
   const upgradeLabel = useUpgradeLabel();
   const [mobileSidebarOpened] = useAtom(mobileSidebarAtom);
   const toggleMobileSidebar = useToggleSidebar(mobileSidebarAtom);
@@ -166,7 +169,25 @@ export default function SettingsSidebar() {
 
   const isItemDisabled = (item: DataItem) => {
     if (!item.feature) return false;
-    return !hasFeature(item.feature);
+    if (!hasFeature(item.feature)) return true;
+    if (
+      item.feature === Feature.PAGE_VERIFICATION &&
+      !isWorkspacePageVerificationEnabled(workspace?.settings)
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const disabledItemLabel = (item: DataItem) => {
+    if (
+      item.feature === Feature.PAGE_VERIFICATION &&
+      hasFeature(item.feature) &&
+      !isWorkspacePageVerificationEnabled(workspace?.settings)
+    ) {
+      return t("Page verification is disabled");
+    }
+    return upgradeLabel;
   };
 
   const menuItems = groupedData.map((group) => {
@@ -234,7 +255,7 @@ export default function SettingsSidebar() {
             return (
               <Tooltip
                 key={item.label}
-                label={upgradeLabel}
+                label={disabledItemLabel(item)}
                 position="right"
                 withArrow
               >

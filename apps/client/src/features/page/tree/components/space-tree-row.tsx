@@ -168,6 +168,7 @@ export function SpaceTreeRow({
               <PageKindIcon
                 isBase={node.isBase}
                 drawingType={node.drawingType}
+                fileType={node.fileType}
                 size={18}
               />
             )
@@ -179,7 +180,7 @@ export function SpaceTreeRow({
       </div>
 
       <span className={classes.text}>
-        {getPageTitle(node.name, node.isBase, t, node.drawingType)}
+        {getPageTitle(node.name, node.isBase, t, node.drawingType, node.fileType)}
       </span>
 
       <div className={classes.actions}>

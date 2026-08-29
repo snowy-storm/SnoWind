@@ -317,6 +317,7 @@ export class PageService {
         'creatorId',
         'isBase',
         'drawingType',
+        'fileType',
         'deletedAt',
       ])
       .select((eb) => this.pageRepo.withHasChildren(eb))
@@ -699,6 +700,7 @@ export class PageService {
           lastUpdatedById: authUser.id,
           isBase: page.isBase,
           drawingType: page.drawingType,
+          fileType: page.fileType,
           parentPageId:
             page.id === rootPage.id
               ? isDuplicateInSameSpace
@@ -878,6 +880,7 @@ export class PageService {
             'icon',
             'isBase',
             'drawingType',
+            'fileType',
             'position',
             'parentPageId',
             'spaceId',
@@ -895,6 +898,7 @@ export class PageService {
                 'p.icon',
                 'p.isBase',
                 'p.drawingType',
+                'p.fileType',
                 'p.position',
                 'p.parentPageId',
                 'p.spaceId',

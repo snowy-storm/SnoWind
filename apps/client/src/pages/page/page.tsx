@@ -1,9 +1,9 @@
 import { useParams } from "react-router-dom";
 import { usePageQuery } from "@/features/page/queries/page-query";
 import { FullEditor } from "@/features/editor/full-editor";
-import { TitleEditor } from "@/features/editor/title-editor";
 import HistoryModal from "@/features/page-history/components/history-modal";
 import PageHeader from "@/features/page/components/header/page-header.tsx";
+import { FilePageHeader } from "@/features/page/components/file-page-header";
 import { extractPageSlugId } from "@/lib";
 import { useGetSpaceBySlugQuery } from "@/features/space/queries/space-query.ts";
 import { useTranslation } from "react-i18next";
@@ -16,12 +16,21 @@ import { ErrorBoundary } from "react-error-boundary";
 import { BaseView } from "@/ee/base/components/base-view";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
-import { getPageTitle } from "@/features/page/page.utils";
-import { DocumentTitle } from "@/components/ui/document-title.tsx";
 import { DrawingPage } from "@/features/drawing/components/drawing-page";
+import { PdfPage } from "@/features/page/components/pdf-page";
+import { WordPage } from "@/features/page/components/word-page";
+import { SpreadsheetPage } from "@/features/page/components/spreadsheet-page";
+import { SlidePage } from "@/features/page/components/slide-page";
+import {
+  getPageTitle,
+  isFilePage,
+  isSlidePage,
+  isSpreadsheetPage,
+  isWordPage,
+} from "@/features/page/page.utils";
+import { DocumentTitle } from "@/components/ui/document-title.tsx";
 import type { DrawingType } from "@/features/page/types/page.types.ts";
 const MemoizedFullEditor = React.memo(FullEditor);
-const MemoizedTitleEditor = React.memo(TitleEditor);
 const MemoizedPageHeader = React.memo(PageHeader);
 const MemoizedHistoryModal = React.memo(HistoryModal);
 
@@ -51,6 +60,7 @@ export default function Page() {
 
 function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
   const { t } = useTranslation();
+  const { spaceSlug } = useParams();
 
   const {
     data: page,
@@ -58,7 +68,9 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
     isError,
     error,
   } = usePageQuery({ pageId: extractPageSlugId(pageSlug) });
-  const { data: space } = useGetSpaceBySlugQuery(page?.space?.slug);
+  const { data: space } = useGetSpaceBySlugQuery(
+    page?.space?.slug ?? spaceSlug,
+  );
 
   const hasBases = useHasFeature(Feature.BASES);
   const canEdit = !page?.deletedAt && (page?.permissions?.canEdit ?? false);
@@ -99,6 +111,84 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
     return <></>;
   }
 
+  if (isFilePage(page)) {
+    return (
+      <div>
+        <DocumentTitle
+          title={`${page?.icon || ""}  ${getPageTitle(page?.title, page?.isBase, t, page?.drawingType, page?.fileType)}`}
+          withAppName={false}
+        />
+        <MemoizedPageHeader readOnly={!canEdit} />
+        <div
+          className="pdf-page-root"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            paddingTop: "var(--page-header-height)",
+            minHeight: 0,
+          }}
+        >
+        {isWordPage(page) ? (
+            <WordPage
+              pageId={page.id}
+              slugId={page.slugId}
+              title={page.title}
+              spaceSlug={page.space?.slug ?? spaceSlug ?? ""}
+              spaceId={page.spaceId}
+              content={page.content}
+              editable={canEdit}
+              createdAt={page.createdAt}
+              updatedAt={page.updatedAt}
+              creator={page.creator}
+              lastUpdatedBy={page.lastUpdatedBy}
+            />
+          ) : isSpreadsheetPage(page) ? (
+            <SpreadsheetPage
+              pageId={page.id}
+              slugId={page.slugId}
+              title={page.title}
+              spaceSlug={page.space?.slug ?? spaceSlug ?? ""}
+              spaceId={page.spaceId}
+              content={page.content}
+              editable={canEdit}
+              createdAt={page.createdAt}
+              updatedAt={page.updatedAt}
+              creator={page.creator}
+              lastUpdatedBy={page.lastUpdatedBy}
+            />
+          ) : isSlidePage(page) ? (
+            <SlidePage
+              pageId={page.id}
+              slugId={page.slugId}
+              title={page.title}
+              spaceSlug={page.space?.slug ?? spaceSlug ?? ""}
+              spaceId={page.spaceId}
+              content={page.content}
+              editable={canEdit}
+              createdAt={page.createdAt}
+              updatedAt={page.updatedAt}
+              creator={page.creator}
+              lastUpdatedBy={page.lastUpdatedBy}
+            />
+          ) : (
+            <PdfPage
+              pageId={page.id}
+              slugId={page.slugId}
+              title={page.title}
+              spaceSlug={page.space?.slug ?? spaceSlug ?? ""}
+              content={page.content}
+              editable={canEdit}
+              createdAt={page.createdAt}
+              updatedAt={page.updatedAt}
+              creator={page.creator}
+              lastUpdatedBy={page.lastUpdatedBy}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (page?.drawingType) {
     return (
       <div>
@@ -111,10 +201,14 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
           pageId={page.id}
           slugId={page.slugId}
           title={page.title}
-          spaceSlug={page.space?.slug ?? ""}
+          spaceSlug={page.space?.slug ?? spaceSlug ?? ""}
           content={page.content}
           drawingType={page.drawingType as DrawingType}
           editable={canEdit}
+          createdAt={page.createdAt}
+          updatedAt={page.updatedAt}
+          creator={page.creator}
+          lastUpdatedBy={page.lastUpdatedBy}
         />
         <MemoizedHistoryModal pageId={page.id} />
       </div>
@@ -160,19 +254,20 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
               pageId={page.id}
               editable={hasBases && canEdit}
               titleSlot={
-                <div
-                  className="base-page-title"
-                  style={{ paddingTop: 2, paddingBottom: 6 }}
-                >
-                  <MemoizedTitleEditor
-                    pageId={page.id}
-                    slugId={page.slugId}
-                    title={page.title}
-                    spaceSlug={page.space?.slug ?? ""}
-                    editable={hasBases && canEdit}
-                    isBase
-                  />
-                </div>
+                <FilePageHeader
+                  title={page.title}
+                  pageId={page.id}
+                  slugId={page.slugId}
+                  spaceSlug={page.space?.slug ?? spaceSlug ?? ""}
+                  editable={hasBases && canEdit}
+                  createdAt={page.createdAt}
+                  updatedAt={page.updatedAt}
+                  creator={page.creator}
+                  lastUpdatedBy={page.lastUpdatedBy}
+                  isBase
+                  createdLabel="created"
+                  flush
+                />
               }
             />
           </div>
@@ -197,7 +292,7 @@ function PageContent({ pageSlug }: { pageSlug: string | undefined }) {
           title={page.title}
           content={page.content}
           slugId={page.slugId}
-          spaceSlug={page?.space?.slug}
+          spaceSlug={page?.space?.slug ?? spaceSlug}
           editable={canEdit}
           creator={page.creator}
           contributors={page.contributors}

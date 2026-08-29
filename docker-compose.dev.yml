@@ -1,53 +1,134 @@
-﻿# Local R&D infra only: Postgres + Redis + Typesense.
-# App (frontend/backend) still runs on the host with `pnpm dev`.
-# Usage: docker compose -f docker-compose.dev.yml up -d --wait
+﻿# Isolated R&D infra: Postgres + Redis + Typesense.
+# Independent project / images / containers / volumes / network / host ports.
+# Does not replace the official stack (snowind-app on 3000, db 5435, redis 6379).
+#
+#   pnpm infra:up
+#   docker compose -f docker-compose.dev.yml up -d --build --wait
+#
+# Host ports: Postgres 5444, Redis 2817, Typesense 8109, OnlyOffice 8088
+# App on host (`pnpm dev`): frontend 5173, backend 3010.
+
 name: snowind-dev
 
 services:
   db:
-    image: docker.m.daocloud.io/library/postgres:16-alpine
+    build:
+      context: ./docker/dev
+      dockerfile: postgres.Dockerfile
+    image: snowind-dev-postgres:16-alpine
     container_name: snowind-dev-db
+    pull_policy: build
     environment:
       POSTGRES_DB: snowind
       POSTGRES_USER: snowind
-      POSTGRES_PASSWORD: "snowind_dev_password_2026!"
+      POSTGRES_PASSWORD: snowind_dev_db_2026
     ports:
-      - "5444:5432"
+      - "127.0.0.1:5444:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U snowind -d snowind"]
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - snowind-dev
     volumes:
-      - snowind_db_data:/var/lib/postgresql/data
+      - snowind_dev_db_data:/var/lib/postgresql/data
 
   redis:
-    image: docker.m.daocloud.io/library/redis:7.2-alpine
+    build:
+      context: ./docker/dev
+      dockerfile: redis.Dockerfile
+    image: snowind-dev-redis:7.2-alpine
     container_name: snowind-dev-redis
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    pull_policy: build
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory-policy
+      - noeviction
+      - --requirepass
+      - snowind_dev_redis_2026
     ports:
-      - "2817:6379"
+      - "127.0.0.1:2817:6379"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "snowind_dev_redis_2026", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - snowind-dev
     volumes:
-      - snowind_redis_data:/data
+      - snowind_dev_redis_data:/data
 
   typesense:
-    image: typesense/typesense:27.1
+    build:
+      context: ./docker/dev
+      dockerfile: typesense.Dockerfile
+    image: snowind-dev-typesense:27.1
     container_name: snowind-dev-typesense
-    command: ["--data-dir", "/data", "--api-key", "snowind_typesense_dev_key_2026", "--enable-cors"]
+    pull_policy: build
+    command:
+      - --data-dir
+      - /data
+      - --api-key
+      - snowind_typesense_dev_key_2026
+      - --enable-cors
     ports:
-      - "8108:8108"
+      - "127.0.0.1:8109:8108"
     restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8108 && printf \"GET /health HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q ok <&3'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - snowind-dev
     volumes:
-      - snowind_typesense_data:/data
+      - snowind_dev_typesense_data:/data
+
+  onlyoffice:
+    image: onlyoffice/documentserver:8.3
+    container_name: snowind-dev-onlyoffice
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: snowind_dev_onlyoffice_jwt_secret_32chars
+      JWT_HEADER: Authorization
+      JWT_IN_BODY: "true"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      ALLOW_META_IP_ADDRESS: "true"
+      USE_UNAUTHORIZED_STORAGE: "true"
+    ports:
+      - "127.0.0.1:8088:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - snowind-dev
+    volumes:
+      - snowind_dev_onlyoffice_data:/var/www/onlyoffice/Data
+      - snowind_dev_onlyoffice_lib:/var/lib/onlyoffice
+
+networks:
+  snowind-dev:
+    name: snowind-dev
+    driver: bridge
 
 volumes:
-  snowind_db_data:
-  snowind_redis_data:
-  snowind_typesense_data:
+  snowind_dev_db_data:
+    name: snowind-dev-db-data
+  snowind_dev_redis_data:
+    name: snowind-dev-redis-data
+  snowind_dev_typesense_data:
+    name: snowind-dev-typesense-data
+  snowind_dev_onlyoffice_data:
+    name: snowind-dev-onlyoffice-data
+  snowind_dev_onlyoffice_lib:
+    name: snowind-dev-onlyoffice-lib

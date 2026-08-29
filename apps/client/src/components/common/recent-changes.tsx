@@ -50,10 +50,10 @@ export default function RecentChanges({ spaceId }: Props) {
                     to={buildPageUrl(page?.space.slug, page.slugId, page.title)}
                   >
                     <Group wrap="nowrap">
-                      <PageListIcon icon={page.icon} isBase={page.isBase} drawingType={page.drawingType} />
+                      <PageListIcon icon={page.icon} isBase={page.isBase} drawingType={page.drawingType} fileType={page.fileType} />
 
                       <Text fw={500} size="md" lineClamp={1}>
-                        {getPageTitle(page.title, page.isBase, t, page.drawingType)}
+                        {getPageTitle(page.title, page.isBase, t, page.drawingType, page.fileType)}
                       </Text>
                     </Group>
                   </UnstyledButton>

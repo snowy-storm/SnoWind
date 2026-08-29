@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
-import { Group, MultiSelect, Select, Space, TextInput } from "@mantine/core";
+import { Group, MultiSelect, Select, Space, Text, TextInput } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useTranslation } from "react-i18next";
-import { IconSearch } from "@tabler/icons-react";
+import { IconLock, IconSearch } from "@tabler/icons-react";
 import SettingsTitle from "@/components/settings/settings-title";
 import Paginate from "@/components/common/paginate";
 import { useCursorPaginate } from "@/hooks/use-cursor-paginate";
@@ -11,9 +11,11 @@ import { IVerificationListParams } from "@/ee/page-verification/types/page-verif
 import VerificationListTable from "@/ee/page-verification/components/verification-list-table";
 import { useGetSpacesQuery } from "@/features/space/queries/space-query";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
+import { usePageVerificationEnabled } from "@/ee/page-verification/hooks/use-page-verification-enabled";
 
 export default function VerifiedPages() {
   const { t } = useTranslation();
+  const hasVerificationFeature = usePageVerificationEnabled();
   const { cursor, goNext, goPrev, resetCursor } = useCursorPaginate();
 
   const [searchValue, setSearchValue] = useState("");
@@ -48,7 +50,10 @@ export default function VerifiedPages() {
     [cursor, spaceFilter, typeFilter, debouncedSearch],
   );
 
-  const { data, isLoading } = useVerificationListQuery(params);
+  const { data, isLoading } = useVerificationListQuery(
+    params,
+    hasVerificationFeature,
+  );
 
   const handleSpaceChange = (value: string[]) => {
     setSpaceFilter(value);
@@ -65,10 +70,22 @@ export default function VerifiedPages() {
     resetCursor();
   };
 
+  if (!hasVerificationFeature) {
+    return (
+      <>
+        <DocumentTitle title={t("Verified pages")} />
+        <SettingsTitle title={t("Verified pages")} />
+        <Group gap="sm" c="dimmed">
+          <IconLock size={16} />
+          <Text size="sm">{t("Page verification is disabled")}</Text>
+        </Group>
+      </>
+    );
+  }
+
   return (
     <>
       <DocumentTitle title={t("Verified pages")} />
-
       <SettingsTitle title={t("Verified pages")} />
 
       <Group mb="md" gap="sm">

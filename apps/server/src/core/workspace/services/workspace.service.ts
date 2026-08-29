@@ -335,7 +335,8 @@ export class WorkspaceService {
       typeof updateWorkspaceDto.isScimEnabled !== 'undefined' ||
       typeof updateWorkspaceDto.aiChatReadOnly !== 'undefined' ||
       typeof updateWorkspaceDto.aiChatWorkspaceKnowledgeOnly !== 'undefined' ||
-      typeof updateWorkspaceDto.enforceMcpOauth !== 'undefined'
+      typeof updateWorkspaceDto.enforceMcpOauth !== 'undefined' ||
+      typeof updateWorkspaceDto.pageVerificationEnabled !== 'undefined'
     ) {
       const ws = await this.db
         .selectFrom('workspaces')
@@ -357,6 +358,20 @@ export class WorkspaceService {
 
       if (typeof updateWorkspaceDto.isScimEnabled !== 'undefined') {
         if (!this.licenseCheckService.hasFeature(ws.licenseKey, Feature.SCIM, ws.plan)) {
+          throw new ForbiddenException(
+            'This feature requires a valid license',
+          );
+        }
+      }
+
+      if (typeof updateWorkspaceDto.pageVerificationEnabled !== 'undefined') {
+        if (
+          !this.licenseCheckService.hasFeature(
+            ws.licenseKey,
+            Feature.PAGE_VERIFICATION,
+            ws.plan,
+          )
+        ) {
           throw new ForbiddenException(
             'This feature requires a valid license',
           );
@@ -548,6 +563,21 @@ export class WorkspaceService {
         );
       }
 
+      if (typeof updateWorkspaceDto.pageVerificationEnabled !== 'undefined') {
+        const prev = settingsBefore?.pageVerification?.enabled !== false;
+        if (prev !== updateWorkspaceDto.pageVerificationEnabled) {
+          before.pageVerificationEnabled = prev;
+          after.pageVerificationEnabled =
+            updateWorkspaceDto.pageVerificationEnabled;
+        }
+        await this.workspaceRepo.updatePageVerificationSettings(
+          workspaceId,
+          'enabled',
+          updateWorkspaceDto.pageVerificationEnabled,
+          trx,
+        );
+      }
+
       if (typeof updateWorkspaceDto.defaultPageEditMode !== 'undefined') {
         const prev = settingsBefore?.defaultPageEditMode ?? null;
         const next = updateWorkspaceDto.defaultPageEditMode.toLowerCase();
@@ -570,6 +600,7 @@ export class WorkspaceService {
       delete updateWorkspaceDto.allowMemberTemplates;
       delete updateWorkspaceDto.aiChat;
       delete updateWorkspaceDto.allowPersonalSpaces;
+      delete updateWorkspaceDto.pageVerificationEnabled;
       delete updateWorkspaceDto.defaultPageEditMode;
       delete updateWorkspaceDto.aiChatReadOnly;
       delete updateWorkspaceDto.aiChatWorkspaceKnowledgeOnly;

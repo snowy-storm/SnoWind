@@ -18,9 +18,11 @@ import { useParams } from "react-router-dom";
 import { extractPageSlugId } from "@/lib";
 import { usePageQuery } from "@/features/page/queries/page-query";
 import { usePageVerificationInfoQuery } from "@/ee/page-verification/queries/page-verification-query";
-import { useHasFeature } from "@/ee/hooks/use-feature";
 import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
-import { Feature } from "@/ee/features";
+import {
+  useHasPageVerificationLicense,
+  usePageVerificationEnabled,
+} from "@/ee/page-verification/hooks/use-page-verification-enabled";
 import { SetupVerificationForm } from "./setup-verification-form";
 import { ManageVerificationForm } from "./manage-verification-form";
 import { getStatusColor, getStatusLabel } from "./verification-status";
@@ -87,7 +89,8 @@ export function PageVerificationBadge({
   const { t } = useTranslation();
   const { pageSlug } = useParams();
   const pageSlugId = extractPageSlugId(pageSlug);
-  const hasVerificationFeature = useHasFeature(Feature.PAGE_VERIFICATION);
+  const hasVerificationLicense = useHasPageVerificationLicense();
+  const hasVerificationFeature = usePageVerificationEnabled();
   const [opened, { open, close }] = useDisclosure(false);
 
   const { data: page } = usePageQuery({ pageId: pageSlugId });
@@ -101,7 +104,10 @@ export function PageVerificationBadge({
   if (!pageId) return null;
   if (!hasVerificationFeature) {
     if (readOnly) return null;
-    const lockedLabel = `${t("Add verification")} — ${upgradeLabel}`;
+    const lockedReason = hasVerificationLicense
+      ? t("Page verification is disabled")
+      : upgradeLabel;
+    const lockedLabel = `${t("Add verification")} — ${lockedReason}`;
     // Use ActionIcon (a real <button>) instead of a ThemeIcon so the tooltip
     // is reachable on keyboard focus, and screen readers announce the upgrade
     // hint via the accessible name. Click is a no-op since the feature is
@@ -186,7 +192,8 @@ export function PageVerificationMenuItem({
   onClick,
 }: PageVerificationMenuItemProps) {
   const { t } = useTranslation();
-  const hasVerificationFeature = useHasFeature(Feature.PAGE_VERIFICATION);
+  const hasVerificationLicense = useHasPageVerificationLicense();
+  const hasVerificationFeature = usePageVerificationEnabled();
   const upgradeLabel = useUpgradeLabel();
 
   const { data: verificationInfo } = usePageVerificationInfoQuery(
@@ -211,7 +218,15 @@ export function PageVerificationMenuItem({
 
   if (!hasVerificationFeature) {
     return (
-      <Tooltip label={upgradeLabel} position="left" withinPortal={false}>
+      <Tooltip
+        label={
+          hasVerificationLicense
+            ? t("Page verification is disabled")
+            : upgradeLabel
+        }
+        position="left"
+        withinPortal={false}
+      >
         {menuItem}
       </Tooltip>
     );

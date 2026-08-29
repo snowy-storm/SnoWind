@@ -83,6 +83,7 @@ export class PageVerificationService {
 
   async getVerificationInfo(pageId: string, user: User) {
     const page = await this.requirePage(pageId);
+    await this.assertWorkspaceEnabled(page.workspaceId);
     await this.pageAccessService.validateCanView(page, user);
 
     const verification = await this.findVerificationByPageId(page.id);
@@ -123,6 +124,7 @@ export class PageVerificationService {
 
   async setupVerification(dto: SetupVerificationDto, user: User) {
     const page = await this.requirePage(dto.pageId, true);
+    await this.assertWorkspaceEnabled(page.workspaceId);
     await this.assertCanManage(page, user);
 
     const existing = await this.db
@@ -232,6 +234,7 @@ export class PageVerificationService {
 
   async updateVerification(dto: UpdateVerificationDto, user: User) {
     const page = await this.requirePage(dto.pageId, true);
+    await this.assertWorkspaceEnabled(page.workspaceId);
     await this.assertCanManage(page, user);
 
     const verification = await this.requireVerification(page.id);
@@ -336,6 +339,7 @@ export class PageVerificationService {
 
   async removeVerification(pageId: string, user: User) {
     const page = await this.requirePage(pageId, true);
+    await this.assertWorkspaceEnabled(page.workspaceId);
     await this.assertCanManage(page, user);
 
     const verification = await this.requireVerification(page.id);
@@ -358,6 +362,7 @@ export class PageVerificationService {
 
   async verifyPage(pageId: string, user: User) {
     const page = await this.requirePage(pageId, true);
+    await this.assertWorkspaceEnabled(page.workspaceId);
     await this.pageAccessService.validateCanView(page, user);
 
     const verification = await this.requireVerification(page.id);
@@ -450,6 +455,7 @@ export class PageVerificationService {
 
   async submitForApproval(pageId: string, user: User) {
     const page = await this.requirePage(pageId, true);
+    await this.assertWorkspaceEnabled(page.workspaceId);
     await this.assertCanManage(page, user);
 
     const verification = await this.requireVerification(page.id);
@@ -510,6 +516,7 @@ export class PageVerificationService {
 
   async rejectApproval(dto: RejectApprovalDto, user: User) {
     const page = await this.requirePage(dto.pageId, true);
+    await this.assertWorkspaceEnabled(page.workspaceId);
     await this.pageAccessService.validateCanView(page, user);
 
     const verification = await this.requireVerification(page.id);
@@ -564,6 +571,7 @@ export class PageVerificationService {
 
   async markObsolete(pageId: string, user: User) {
     const page = await this.requirePage(pageId, true);
+    await this.assertWorkspaceEnabled(page.workspaceId);
     await this.assertCanManage(page, user);
 
     const verification = await this.requireVerification(page.id);
@@ -594,6 +602,7 @@ export class PageVerificationService {
   }
 
   async listVerifications(dto: ListVerificationsDto, user: User) {
+    await this.assertWorkspaceEnabled(user.workspaceId);
     const limit = dto.limit ?? 20;
 
     let query = this.db
@@ -828,6 +837,22 @@ export class PageVerificationService {
       throw new NotFoundException('Page not found');
     }
     return page;
+  }
+
+  private async assertWorkspaceEnabled(workspaceId: string): Promise<void> {
+    const workspace = await this.db
+      .selectFrom('workspaces')
+      .select('settings')
+      .where('id', '=', workspaceId)
+      .executeTakeFirst();
+    const enabled = (
+      workspace?.settings as {
+        pageVerification?: { enabled?: boolean };
+      } | null
+    )?.pageVerification?.enabled;
+    if (enabled === false) {
+      throw new ForbiddenException('Page verification is disabled');
+    }
   }
 
   private async canManagePage(page: Page, user: User): Promise<boolean> {

@@ -40,6 +40,7 @@ export class PageRepo {
     'isLocked',
     'isBase',
     'drawingType',
+    'fileType',
     'createdAt',
     'updatedAt',
     'deletedAt',
@@ -512,6 +513,7 @@ export class PageRepo {
             'workspaceId',
             'isBase',
             'drawingType',
+            'fileType',
             'createdAt',
             'updatedAt',
           ])
@@ -532,6 +534,7 @@ export class PageRepo {
                 'p.workspaceId',
                 'p.isBase',
                 'p.drawingType',
+                'p.fileType',
                 'p.createdAt',
                 'p.updatedAt',
               ])

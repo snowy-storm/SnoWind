@@ -8,6 +8,7 @@ import { Divider } from "@mantine/core";
 import AllowMemberTemplates from "@/ee/security/components/allow-member-templates.tsx";
 import WorkspaceDefaultPageEditMode from "@/features/workspace/components/settings/components/workspace-default-page-edit-mode.tsx";
 import PersonalSpacesSetting from "@/ee/personal-space/components/personal-spaces-setting.tsx";
+import EnablePageVerification from "@/ee/page-verification/components/enable-page-verification.tsx";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
 
 export default function WorkspaceSettings() {
@@ -24,6 +25,9 @@ export default function WorkspaceSettings() {
 
       <Divider my="md" />
       <PersonalSpacesSetting />
+
+      <Divider my="md" />
+      <EnablePageVerification />
 
       {isCloud() && (
         <>

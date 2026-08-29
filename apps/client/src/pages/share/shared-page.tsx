@@ -14,6 +14,17 @@ import {
 } from "@/features/share/atoms/shared-page-atom.ts";
 import { isPageInTree } from "@/features/share/utils.ts";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
+import { PdfPage } from "@/features/page/components/pdf-page";
+import { WordPage } from "@/features/page/components/word-page";
+import { SpreadsheetPage } from "@/features/page/components/spreadsheet-page";
+import { SlidePage } from "@/features/page/components/slide-page";
+import {
+  isFilePage,
+  isPdfPage,
+  isSlidePage,
+  isSpreadsheetPage,
+  isWordPage,
+} from "@/features/page/page.utils";
 
 export default function SharedPage() {
   const { t } = useTranslation();
@@ -65,14 +76,75 @@ export default function SharedPage() {
         )}
       </DocumentTitle>
 
-      <Container fluid={fullWidth} size={fullWidth ? undefined : 900} p={0}>
-        <ReadonlyPageEditor
-          key={data.page.id}
-          title={data.page.title}
-          content={data.page.content}
-          pageId={data.page.id}
-          shareId={data.share.id}
-        />
+      <Container fluid={fullWidth || isFilePage(data.page)} size={fullWidth || isFilePage(data.page) ? undefined : 900} p={0}>
+        {isPdfPage(data.page) || isWordPage(data.page) || isSpreadsheetPage(data.page) || isSlidePage(data.page) ? (
+          <div
+            className="pdf-page-root"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            {isWordPage(data.page) ? (
+              <WordPage
+                pageId={data.page.id}
+                slugId={data.page.slugId}
+                title={data.page.title}
+                content={data.page.content}
+                editable={false}
+                createdAt={data.page.createdAt}
+                updatedAt={data.page.updatedAt}
+                creator={data.page.creator}
+                lastUpdatedBy={data.page.lastUpdatedBy}
+              />
+            ) : isSpreadsheetPage(data.page) ? (
+              <SpreadsheetPage
+                pageId={data.page.id}
+                slugId={data.page.slugId}
+                title={data.page.title}
+                content={data.page.content}
+                editable={false}
+                createdAt={data.page.createdAt}
+                updatedAt={data.page.updatedAt}
+                creator={data.page.creator}
+                lastUpdatedBy={data.page.lastUpdatedBy}
+              />
+            ) : isSlidePage(data.page) ? (
+              <SlidePage
+                pageId={data.page.id}
+                slugId={data.page.slugId}
+                title={data.page.title}
+                content={data.page.content}
+                editable={false}
+                createdAt={data.page.createdAt}
+                updatedAt={data.page.updatedAt}
+                creator={data.page.creator}
+                lastUpdatedBy={data.page.lastUpdatedBy}
+              />
+            ) : (
+              <PdfPage
+                pageId={data.page.id}
+                slugId={data.page.slugId}
+                title={data.page.title}
+                content={data.page.content}
+                editable={false}
+                createdAt={data.page.createdAt}
+                updatedAt={data.page.updatedAt}
+                creator={data.page.creator}
+                lastUpdatedBy={data.page.lastUpdatedBy}
+              />
+            )}
+          </div>
+        ) : (
+          <ReadonlyPageEditor
+            key={data.page.id}
+            title={data.page.title}
+            content={data.page.content}
+            pageId={data.page.id}
+            shareId={data.share.id}
+          />
+        )}
       </Container>
 
       {data && !shareId && !(data.features?.length > 0) && <ShareBranding />}

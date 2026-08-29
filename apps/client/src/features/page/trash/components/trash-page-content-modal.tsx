@@ -3,6 +3,10 @@ import { IconTable } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import ReadonlyPageEditor from "@/features/editor/readonly-page-editor.tsx";
 import { EmptyState } from "@/components/ui/empty-state.tsx";
+import { PdfPage } from "@/features/page/components/pdf-page";
+import { WordPage } from "@/features/page/components/word-page";
+import { SpreadsheetPage } from "@/features/page/components/spreadsheet-page";
+import { SlidePage } from "@/features/page/components/slide-page";
 
 interface Props {
   opened: boolean;
@@ -10,6 +14,7 @@ interface Props {
   pageTitle: string;
   pageContent: any;
   isBase?: boolean;
+  fileType?: string | null;
 }
 
 export default function TrashPageContentModal({
@@ -18,6 +23,7 @@ export default function TrashPageContentModal({
   pageTitle,
   pageContent,
   isBase,
+  fileType,
 }: Props) {
   const { t } = useTranslation();
   const title = pageTitle || t("Untitled");
@@ -42,6 +48,22 @@ export default function TrashPageContentModal({
                 title={t("Base preview unavailable")}
                 description={t("Restore this base to view its contents.")}
               />
+            ) : fileType === "pdf" ? (
+              <div style={{ height: 650 }}>
+                <PdfPage title={title} content={pageContent} />
+              </div>
+            ) : fileType === "word" ? (
+              <div style={{ height: 650 }}>
+                <WordPage title={title} content={pageContent} />
+              </div>
+            ) : fileType === "spreadsheet" ? (
+              <div style={{ height: 650 }}>
+                <SpreadsheetPage title={title} content={pageContent} />
+              </div>
+            ) : fileType === "slide" ? (
+              <div style={{ height: 650 }}>
+                <SlidePage title={title} content={pageContent} />
+              </div>
             ) : (
               <ReadonlyPageEditor title={title} content={pageContent} />
             )}

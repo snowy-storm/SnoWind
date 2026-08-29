@@ -307,4 +307,24 @@ export class WorkspaceRepo {
       .executeTakeFirst();
   }
 
+  async updatePageVerificationSettings(
+    workspaceId: string,
+    prefKey: string,
+    prefValue: string | boolean,
+    trx?: KyselyTransaction,
+  ) {
+    const db = dbOrTx(this.db, trx);
+    return db
+      .updateTable('workspaces')
+      .set({
+        settings: sql`COALESCE(settings, '{}'::jsonb)
+                || jsonb_build_object('pageVerification', COALESCE(settings->'pageVerification', '{}'::jsonb)
+                || jsonb_build_object('${sql.raw(prefKey)}', ${sql.lit(prefValue)}))`,
+        updatedAt: new Date(),
+      })
+      .where('id', '=', workspaceId)
+      .returning(this.baseFields)
+      .executeTakeFirst();
+  }
+
 }

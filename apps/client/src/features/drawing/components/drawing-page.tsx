@@ -1,13 +1,12 @@
-import React from "react";
-import { TitleEditor } from "@/features/editor/title-editor";
-import { DeletedPageBanner } from "@/features/page/trash/components/deleted-page-banner.tsx";
+import {
+  FilePageHeader,
+  type FilePagePerson,
+} from "@/features/page/components/file-page-header";
 import type { DrawingType } from "@/features/page/types/page.types.ts";
 import { DrawingExcalidraw } from "./drawing-excalidraw";
 import { DrawingDrawio } from "./drawing-drawio";
 import { DrawingMermaid } from "./drawing-mermaid";
 import { DrawingMindmap } from "./drawing-mindmap";
-
-const MemoizedTitleEditor = React.memo(TitleEditor);
 
 type DrawingPageProps = {
   pageId: string;
@@ -17,6 +16,10 @@ type DrawingPageProps = {
   content: unknown;
   drawingType: DrawingType;
   editable: boolean;
+  createdAt?: Date | string | null;
+  updatedAt?: Date | string | null;
+  creator?: FilePagePerson;
+  lastUpdatedBy?: FilePagePerson;
 };
 
 export function DrawingPage({
@@ -27,6 +30,10 @@ export function DrawingPage({
   content,
   drawingType,
   editable,
+  createdAt,
+  updatedAt,
+  creator,
+  lastUpdatedBy,
 }: DrawingPageProps) {
   return (
     <div
@@ -34,22 +41,22 @@ export function DrawingPage({
       style={{
         display: "flex",
         flexDirection: "column",
-        paddingTop: "calc(var(--page-header-height) + 6px)",
+        paddingTop: "var(--page-header-height)",
       }}
     >
-      <div style={{ paddingInline: 24, paddingBottom: 6 }}>
-        <DeletedPageBanner slugId={slugId} />
-        <div className="drawing-page-title">
-          <MemoizedTitleEditor
-            pageId={pageId}
-            slugId={slugId}
-            title={title}
-            spaceSlug={spaceSlug}
-            editable={editable}
-            drawingType={drawingType}
-          />
-        </div>
-      </div>
+      <FilePageHeader
+        title={title}
+        pageId={pageId}
+        slugId={slugId}
+        spaceSlug={spaceSlug}
+        editable={editable}
+        createdAt={createdAt}
+        updatedAt={updatedAt}
+        creator={creator}
+        lastUpdatedBy={lastUpdatedBy}
+        drawingType={drawingType}
+        createdLabel="created"
+      />
       <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {drawingType === "excalidraw" && (
           <DrawingExcalidraw

@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   ForbiddenException,
   HttpCode,
   HttpStatus,
   Inject,
   Logger,
+  NotFoundException,
   Post,
   Req,
   UseGuards,
@@ -23,6 +25,7 @@ import { FileInterceptor } from '../../common/interceptors/file.interceptor';
 import * as bytes from 'bytes';
 import * as path from 'path';
 import { ImportService } from './services/import.service';
+import { ConvertWordPageDto } from './dto/convert-word-page.dto';
 import { AuthWorkspace } from '../../common/decorators/auth-workspace.decorator';
 import { EnvironmentService } from '../environment/environment.service';
 import { AuditEvent, AuditResource } from '../../common/events/audit-events';
@@ -51,9 +54,20 @@ export class ImportController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    const validFileExtensions = ['.md', '.html', '.docx', '.pdf'];
+    const validFileExtensions = [
+      '.md',
+      '.html',
+      '.doc',
+      '.docx',
+      '.pdf',
+      '.xlsx',
+      '.xls',
+      '.csv',
+      '.ppt',
+      '.pptx',
+    ];
 
-    const maxFileSize = bytes('30mb');
+    const maxFileSize = bytes('150mb');
 
     let file = null;
     try {
@@ -64,7 +78,7 @@ export class ImportController {
       this.logger.error(err.message);
       if (err?.statusCode === 413) {
         throw new BadRequestException(
-          `File too large. Exceeds the 10mb import limit`,
+          `File too large. Exceeds the 150mb import limit`,
         );
       }
     }
@@ -101,8 +115,14 @@ export class ImportController {
     const sourceMap: Record<string, string> = {
       '.md': 'markdown',
       '.html': 'html',
-      '.docx': 'docx',
+      '.doc': 'word',
+      '.docx': 'word',
       '.pdf': 'pdf',
+      '.xlsx': 'spreadsheet',
+      '.xls': 'spreadsheet',
+      '.csv': 'spreadsheet',
+      '.ppt': 'slide',
+      '.pptx': 'slide',
     };
 
     if (createdPage) {
@@ -119,6 +139,51 @@ export class ImportController {
     }
 
     return createdPage;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Post('pages/convert-word')
+  async convertWordPage(
+    @Body() dto: ConvertWordPageDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    const sourcePage = await this.importService.getPageForConvert(dto.pageId);
+    if (!sourcePage || sourcePage.deletedAt) {
+      throw new NotFoundException('Page not found');
+    }
+
+    const ability = await this.spaceAbility.createForUser(
+      user,
+      sourcePage.spaceId,
+    );
+    if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+      throw new ForbiddenException();
+    }
+
+    const result = await this.importService.convertWordPageToSystemPage(
+      dto.pageId,
+      user.id,
+      workspace.id,
+      dto.keepOriginal,
+    );
+
+    if (result?.page) {
+      this.auditService.log({
+        event: AuditEvent.PAGE_CREATED,
+        resourceType: AuditResource.PAGE,
+        resourceId: result.page.id,
+        spaceId: result.page.spaceId,
+        metadata: {
+          source: 'word-convert',
+          keepOriginal: dto.keepOriginal,
+          sourcePageId: dto.pageId,
+        },
+      });
+    }
+
+    return result;
   }
 
   @UseInterceptors(FileInterceptor)

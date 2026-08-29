@@ -5,7 +5,6 @@ import {
   FileButton,
   Group,
   Text,
-  Tooltip,
 } from "@mantine/core";
 import {
   IconBrandNotion,
@@ -13,6 +12,7 @@ import {
   IconFileCode,
   IconFileTypeDocx,
   IconFileTypePdf,
+  IconFileTypePpt,
   IconFileTypeZip,
   IconMarkdown,
   IconTable,
@@ -22,8 +22,6 @@ import {
   importPage,
   importZip,
 } from "@/features/page/services/page-service.ts";
-import { importTable } from "@/ee/base/services/base-service.ts";
-import { readSpreadsheetSheetNames } from "@/features/page/utils/read-spreadsheet-sheets.ts";
 import { notifications } from "@mantine/notifications";
 import { treeDataAtom } from "@/features/page/tree/atoms/tree-data-atom.ts";
 import { useAtom } from "jotai";
@@ -34,15 +32,11 @@ import { useTranslation } from "react-i18next";
 import { ConfluenceIcon } from "@/components/icons/confluence-icon.tsx";
 import { getFileImportSizeLimit } from "@/lib/config.ts";
 import { formatBytes } from "@/lib";
-import { useHasFeature } from "@/ee/hooks/use-feature";
-import { Feature } from "@/ee/features";
-import { useUpgradeLabel } from "@/ee/hooks/use-upgrade-label";
 import { getFileTaskById } from "@/features/file-task/services/file-task-service.ts";
 import { queryClient } from "@/main.tsx";
 import { useQueryEmit } from "@/features/websocket/use-query-emit.ts";
 import { getApiErrorMessage } from "@/lib/api-error";
 import bytes from "bytes";
-import TableImportSheetModal from "@/features/page/components/table-import-sheet-modal.tsx";
 
 interface PageImportModalProps {
   spaceId: string;
@@ -83,14 +77,7 @@ function ImportFormatSelection({
   const confluenceFileRef = useRef<() => void>(null);
   const zipFileRef = useRef<() => void>(null);
   const tableFileRef = useRef<() => void>(null);
-
-  const canUseBases = useHasFeature(Feature.BASES);
-  const upgradeLabel = useUpgradeLabel();
-
-  const [sheetModalOpen, setSheetModalOpen] = useState(false);
-  const [pendingTableFile, setPendingTableFile] = useState<File | null>(null);
-  const [tableSheets, setTableSheets] = useState<string[]>([]);
-  const [tableImporting, setTableImporting] = useState(false);
+  const slideFileRef = useRef<() => void>(null);
 
   const handleZipUpload = async (selectedFile: File, source: string) => {
     if (!selectedFile) {
@@ -238,130 +225,7 @@ function ImportFormatSelection({
     }, 3000);
   }, [fileTaskId]);
 
-  const maxSingleFileSize = bytes("30mb");
-
-  const applyImportedPages = (pages: IPage[]) => {
-    if (!pages?.length) return;
-    const newTreeNodes = buildTree(pages);
-    if (newTreeNodes?.length) {
-      setTreeData((prev) => prev.concat(newTreeNodes));
-    }
-    queryClient.invalidateQueries({
-      queryKey: ["root-sidebar-pages", spaceId],
-    });
-    setTimeout(() => {
-      emit({
-        operation: "refetchRootTreeNodeEvent",
-        spaceId: spaceId,
-      });
-    }, 50);
-  };
-
-  const importTableFile = async (file: File, sheetNames?: string[]) => {
-    const alert = notifications.show({
-      title: t("Importing pages"),
-      message: t("Page import is in progress. Please do not close this tab."),
-      loading: true,
-      autoClose: false,
-    });
-
-    try {
-      const pages = await importTable(file, spaceId, sheetNames);
-      applyImportedPages(pages);
-      if (tableFileRef.current) tableFileRef.current();
-
-      const pageCount = pages.length;
-      const pageCountText =
-        pageCount === 1 ? `1 ${t("page")}` : `${pageCount} ${t("pages")}`;
-
-      notifications.update({
-        id: alert,
-        color: "teal",
-        title: `${t("Successfully imported")} ${pageCountText}`,
-        message: t("Your import is complete."),
-        icon: <IconCheck size={18} />,
-        loading: false,
-        autoClose: 5000,
-      });
-    } catch (err) {
-      notifications.update({
-        id: alert,
-        color: "red",
-        title: t("Failed to import table"),
-        message: getApiErrorMessage(
-          err,
-          t("Unable to import pages. Please try again."),
-        ),
-        icon: <IconX size={18} />,
-        loading: false,
-        autoClose: 5000,
-      });
-    }
-  };
-
-  const handleTableFile = async (selectedFile: File | null) => {
-    if (!selectedFile) return;
-
-    if (selectedFile.size > maxSingleFileSize) {
-      notifications.show({
-        color: "red",
-        message: t("File exceeds the {{limit}} import limit", {
-          limit: formatBytes(maxSingleFileSize),
-        }),
-      });
-      return;
-    }
-
-    const ext = selectedFile.name.split(".").pop()?.toLowerCase();
-    if (ext === "csv") {
-      onClose();
-      await importTableFile(selectedFile);
-      return;
-    }
-
-    try {
-      const sheets = await readSpreadsheetSheetNames(selectedFile);
-      if (!sheets.length) {
-        notifications.show({
-          color: "red",
-          title: t("Failed to import table"),
-          message: t("No sheets found in this file."),
-        });
-        return;
-      }
-      if (sheets.length === 1) {
-        onClose();
-        await importTableFile(selectedFile);
-        return;
-      }
-      setPendingTableFile(selectedFile);
-      setTableSheets(sheets);
-      setSheetModalOpen(true);
-    } catch (err) {
-      notifications.show({
-        color: "red",
-        title: t("Failed to read spreadsheet"),
-        message: getApiErrorMessage(
-          err,
-          t("Unable to import pages. Please try again."),
-        ),
-        icon: <IconX size={18} />,
-      });
-    }
-  };
-
-  const handleSheetConfirm = async (sheetNames: string[]) => {
-    if (!pendingTableFile || sheetNames.length === 0) return;
-    setTableImporting(true);
-    onClose();
-    try {
-      await importTableFile(pendingTableFile, sheetNames);
-      setSheetModalOpen(false);
-      setPendingTableFile(null);
-    } finally {
-      setTableImporting(false);
-    }
-  };
+  const maxSingleFileSize = bytes("150mb");
 
   const handleFileUpload = async (selectedFiles: File[]) => {
     if (!selectedFiles) {
@@ -418,6 +282,8 @@ function ImportFormatSelection({
       if (htmlFileRef.current) htmlFileRef.current();
       if (docxFileRef.current) docxFileRef.current();
       if (pdfFileRef.current) pdfFileRef.current();
+      if (tableFileRef.current) tableFileRef.current();
+      if (slideFileRef.current) slideFileRef.current();
 
       const pageCountText =
         pageCount === 1 ? `1 ${t("page")}` : `${pageCount} ${t("pages")}`;
@@ -512,11 +378,11 @@ function ImportFormatSelection({
 
         <FileButton
           onChange={handleFileUpload}
-          accept=".docx"
+          accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           multiple
           resetRef={docxFileRef}
           inputProps={{
-            "aria-label": t("Choose {{format}} file", { format: "Word (DOCX)" }),
+            "aria-label": t("Choose {{format}} file", { format: "Word" }),
           }}
         >
           {(props) => (
@@ -526,7 +392,7 @@ function ImportFormatSelection({
               leftSection={<IconFileTypeDocx size={18} />}
               {...props}
             >
-              Word (DOCX)
+              Word
             </Button>
           )}
         </FileButton>
@@ -553,25 +419,44 @@ function ImportFormatSelection({
         </FileButton>
 
         <FileButton
-          onChange={handleTableFile}
+          onChange={handleFileUpload}
+          accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          multiple
+          resetRef={slideFileRef}
+          inputProps={{
+            "aria-label": t("Choose {{format}} file", { format: t("Slides") }),
+          }}
+        >
+          {(props) => (
+            <Button
+              justify="start"
+              variant="default"
+              leftSection={<IconFileTypePpt size={18} />}
+              {...props}
+            >
+              {t("Slides")}
+            </Button>
+          )}
+        </FileButton>
+
+        <FileButton
+          onChange={handleFileUpload}
           accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+          multiple
           resetRef={tableFileRef}
           inputProps={{
             "aria-label": t("Choose {{format}} file", { format: "Table" }),
           }}
         >
           {(props) => (
-            <Tooltip label={upgradeLabel} disabled={canUseBases}>
-              <Button
-                disabled={!canUseBases}
-                justify="start"
-                variant="default"
-                leftSection={<IconTable size={18} />}
-                {...props}
-              >
-                {t("Table")}
-              </Button>
-            </Tooltip>
+            <Button
+              justify="start"
+              variant="default"
+              leftSection={<IconTable size={18} />}
+              {...props}
+            >
+              {t("Table")}
+            </Button>
           )}
         </FileButton>
 
@@ -653,19 +538,6 @@ function ImportFormatSelection({
           </Modal.Body>
         </Modal.Content>
       </Modal.Root>
-
-      <TableImportSheetModal
-        open={sheetModalOpen}
-        sheets={tableSheets}
-        fileName={pendingTableFile?.name}
-        loading={tableImporting}
-        onClose={() => {
-          if (tableImporting) return;
-          setSheetModalOpen(false);
-          setPendingTableFile(null);
-        }}
-        onConfirm={handleSheetConfirm}
-      />
     </>
   );
 }

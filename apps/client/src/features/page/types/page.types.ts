@@ -1,6 +1,7 @@
 import { ISpace } from "@/features/space/types/space.types.ts";
 
 export type DrawingType = "excalidraw" | "drawio" | "mermaid" | "mindmap";
+export type PageFileType = "pdf" | "word" | "spreadsheet" | "slide";
 
 export interface IPage {
   id: string;
@@ -16,6 +17,7 @@ export interface IPage {
   isLocked: boolean;
   isBase: boolean;
   drawingType?: DrawingType | null;
+  fileType?: PageFileType | string | null;
   lastUpdatedById: string;
   createdAt: Date;
   updatedAt: Date;
@@ -93,6 +95,7 @@ export interface IPageInput {
   spaceId?: string;
   isBase?: boolean;
   drawingType?: DrawingType | null;
+  fileType?: PageFileType | string | null;
   content?: string | object;
   format?: "json" | "markdown" | "html";
   operation?: "append" | "prepend" | "replace";

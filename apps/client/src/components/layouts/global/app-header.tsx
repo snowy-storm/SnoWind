@@ -34,6 +34,7 @@ import {
 } from "@/features/search/constants.ts";
 import { NotificationPopover } from "@/features/notification/components/notification-popover.tsx";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
+import { SnoWindLogo } from "@/components/icons/snowind-logo.tsx";
 
 const links = [
   { link: APP_ROUTE.HOME, label: "Home" },
@@ -85,13 +86,8 @@ export function AppHeader() {
           </Tooltip>
 
           <Link to="/home" className={classes.brand} aria-label="SnoWind">
-            <Box hiddenFrom="sm" className={classes.brandIcon}>
-              <img
-                src="/icons/favicon-32x32.png"
-                alt="SnoWind"
-                width={22}
-                height={22}
-              />
+            <Box className={classes.brandIcon}>
+              <SnoWindLogo size={22} />
             </Box>
             <Text
               size="lg"

@@ -2,6 +2,7 @@ import { Interval } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
+import { sql } from 'kysely';
 import { Queue } from 'bullmq';
 import { KyselyDB } from '@snowind/db/types/kysely.types';
 import { QueueJob, QueueName } from '../../integrations/queue/constants';
@@ -30,12 +31,20 @@ export class PageVerificationSchedulerService {
       const expiring = await this.db
         .selectFrom('pageVerifications')
         .innerJoin('pages', 'pages.id', 'pageVerifications.pageId')
+        .innerJoin(
+          'workspaces',
+          'workspaces.id',
+          'pageVerifications.workspaceId',
+        )
         .select(['pageVerifications.id', 'pageVerifications.expiresAt'])
         .where('pageVerifications.type', '=', 'expiring')
         .where('pageVerifications.expiresAt', 'is not', null)
         .where('pageVerifications.expiresAt', '>', now)
         .where('pageVerifications.expiresAt', '<=', windowEnd)
         .where('pages.deletedAt', 'is', null)
+        .where(
+          sql`(workspaces.settings->'pageVerification'->>'enabled') is distinct from 'false'`,
+        )
         .execute();
 
       for (const row of expiring) {
@@ -50,11 +59,19 @@ export class PageVerificationSchedulerService {
       const expired = await this.db
         .selectFrom('pageVerifications')
         .innerJoin('pages', 'pages.id', 'pageVerifications.pageId')
+        .innerJoin(
+          'workspaces',
+          'workspaces.id',
+          'pageVerifications.workspaceId',
+        )
         .select(['pageVerifications.id', 'pageVerifications.expiresAt'])
         .where('pageVerifications.type', '=', 'expiring')
         .where('pageVerifications.expiresAt', 'is not', null)
         .where('pageVerifications.expiresAt', '<=', now)
         .where('pages.deletedAt', 'is', null)
+        .where(
+          sql`(workspaces.settings->'pageVerification'->>'enabled') is distinct from 'false'`,
+        )
         .execute();
 
       for (const row of expired) {

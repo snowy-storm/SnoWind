@@ -195,6 +195,7 @@ export function useRestorePageMutation() {
           hasChildren: restoredPage.hasChildren || false,
           isBase: restoredPage.isBase,
           drawingType: restoredPage.drawingType,
+          fileType: restoredPage.fileType,
           children: [],
         };
 
@@ -363,6 +364,7 @@ export function invalidateOnCreatePage(data: Partial<IPage>) {
     title: data.title,
     isBase: data.isBase,
     drawingType: data.drawingType,
+    fileType: data.fileType,
   };
 
   //update all sidebar pages

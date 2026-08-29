@@ -32,6 +32,7 @@ export interface IWorkspace {
   restrictApiToAdmins?: boolean;
   allowMemberTemplates?: boolean;
   allowPersonalSpaces?: boolean;
+  pageVerificationEnabled?: boolean;
   defaultPageEditMode?: string;
   isScimEnabled?: boolean;
 }
@@ -42,6 +43,7 @@ export interface IWorkspaceSettings {
   api?: IWorkspaceApiSettings;
   templates?: IWorkspaceTemplateSettings;
   spaces?: IWorkspaceSpaceSettings;
+  pageVerification?: IWorkspacePageVerificationSettings;
   defaultPageEditMode?: string;
 }
 
@@ -69,6 +71,10 @@ export interface IWorkspaceTemplateSettings {
 
 export interface IWorkspaceSpaceSettings {
   allowPersonal?: boolean;
+}
+
+export interface IWorkspacePageVerificationSettings {
+  enabled?: boolean;
 }
 
 export interface ICreateInvite {

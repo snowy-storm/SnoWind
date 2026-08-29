@@ -8,6 +8,7 @@ export enum JwtType {
   PDF_RENDER = 'pdf_render',
   PDF_EXPORT_DOWNLOAD = 'pdf_export_download',
   OAUTH_ACCESS = 'oauth_access',
+  ONLYOFFICE = 'onlyoffice',
 }
 export type JwtPayload = {
   sub: string;
@@ -59,6 +60,14 @@ export type JwtPdfExportDownloadPayload = {
   fileTaskId: string;
   workspaceId: string;
   type: 'pdf_export_download';
+};
+
+export type JwtOnlyOfficePayload = {
+  attachmentId: string;
+  workspaceId: string;
+  userId?: string;
+  canEdit: boolean;
+  type: 'onlyoffice';
 };
 
 export type JwtOAuthPayload = {

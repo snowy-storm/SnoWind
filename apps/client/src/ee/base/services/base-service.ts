@@ -212,3 +212,25 @@ export async function importTable(
   });
   return req.data;
 }
+
+export async function convertSpreadsheetPageToBases(
+  pageId: string,
+  sheetNames: string[],
+  keepOriginal: boolean,
+): Promise<{ pages: IPage[]; deletedOriginal: boolean }> {
+  const req = await api.post<{ pages: IPage[]; deletedOriginal: boolean }>(
+    "/bases/convert-spreadsheet",
+    { pageId, sheetNames, keepOriginal },
+  );
+  return req.data;
+}
+
+export async function listSpreadsheetPageSheets(
+  pageId: string,
+): Promise<{ sheets: string[] }> {
+  const req = await api.post<{ sheets: string[] }>(
+    "/bases/spreadsheet-sheets",
+    { pageId },
+  );
+  return req.data;
+}

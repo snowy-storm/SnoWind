@@ -61,6 +61,7 @@ type BasePropertyEvent = {
   property?: IBaseProperty;
   propertyId?: string;
   requestId?: string | null;
+  typeConverted?: boolean;
 };
 
 type BaseViewEvent = {
@@ -371,8 +372,13 @@ export function useBaseSocket(pageId: string | undefined): void {
         case "base:view:created":
         case "base:view:updated":
         case "base:view:deleted": {
-          // Schema/metadata events only affect properties/views, not cell data.
           queryClient.invalidateQueries({ queryKey: ["bases", pageId] });
+          if (
+            event.operation === "base:property:updated" &&
+            (event as BasePropertyEvent).typeConverted
+          ) {
+            queryClient.invalidateQueries({ queryKey: ["base-rows", pageId] });
+          }
           break;
         }
         default:

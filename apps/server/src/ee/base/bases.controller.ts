@@ -23,6 +23,8 @@ import * as bytes from 'bytes';
 import * as path from 'path';
 import {
   ConvertBaseDto,
+  ConvertSpreadsheetPageDto,
+  PageIdDto,
   CreateBaseDto,
   CreatePropertyDto,
   CreateRowDto,
@@ -228,6 +230,57 @@ export class BasesController {
       fileName + ext,
       sheetNames,
       spaceId,
+      workspace.id,
+      user,
+    );
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('spreadsheet-sheets')
+  async listSpreadsheetPageSheets(
+    @Body() dto: PageIdDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    const sourcePage = await this.pageRepo.findById(dto.pageId);
+    if (!sourcePage || sourcePage.deletedAt) {
+      throw new BadRequestException('Page not found');
+    }
+    const ability = await this.spaceAbility.createForUser(
+      user,
+      sourcePage.spaceId,
+    );
+    if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+      throw new ForbiddenException();
+    }
+    return this.baseService.listSpreadsheetPageSheets(
+      dto.pageId,
+      workspace.id,
+    );
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('convert-spreadsheet')
+  async convertSpreadsheetPage(
+    @Body() dto: ConvertSpreadsheetPageDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    const sourcePage = await this.pageRepo.findById(dto.pageId);
+    if (!sourcePage || sourcePage.deletedAt) {
+      throw new BadRequestException('Page not found');
+    }
+    const ability = await this.spaceAbility.createForUser(
+      user,
+      sourcePage.spaceId,
+    );
+    if (ability.cannot(SpaceCaslAction.Edit, SpaceCaslSubject.Page)) {
+      throw new ForbiddenException();
+    }
+    return this.baseService.convertSpreadsheetPageToBases(
+      dto.pageId,
+      dto.sheetNames,
+      dto.keepOriginal,
       workspace.id,
       user,
     );
