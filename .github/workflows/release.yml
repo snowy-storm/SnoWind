@@ -59,3 +59,12 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/snowy-storm/SnoWind
             org.opencontainers.image.version=${{ steps.ver.outputs.version }}
+
+      - name: Make GHCR package public
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method PUT \
+            "/users/snowy-storm/packages/container/snowind/visibility" \
+            -f visibility=public

@@ -211,11 +211,27 @@ docker compose down -v          # 停止并删除数据（不可恢复，慎用�
 
 ---
 
-## 镜像拉取失败时
+## 镜像拉取失败时（unauthorized）
 
-应用镜像在 GitHub Container Registry：`ghcr.io/snowy-storm/snowind:0.1.1`。
+`docker compose up` 若报 `error from registry: unauthorized`，是在拉 `ghcr.io/snowy-storm/snowind:0.1.1`。仓库公开不等于容器包公开，GitHub Packages 默认仍是 **Private**。
 
-若提示 unauthorized / not found，到仓库的 **Packages** 将 `snowind` 包可见性设为 **Public**，或等待该版本的 GitHub Actions 构建完成。
+仓库所有者请打开：  
+https://github.com/users/snowy-storm/packages/container/package/snowind  
+→ **Package settings** → **Change visibility** → **Public**。
+
+改完后再执行：
+
+```powershell
+docker compose pull
+docker compose up -d
+```
+
+临时方案（仅自己机器）：用有 `read:packages` 的 GitHub Token 登录后再拉：
+
+```powershell
+echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u snowy-storm --password-stdin
+docker compose up -d
+```
 
 从本仓库源码自行构建（开发者）：
 

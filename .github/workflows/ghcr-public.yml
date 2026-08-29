@@ -1,0 +1,21 @@
+name: Make GHCR package public
+
+on:
+  workflow_dispatch:
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  visibility:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set snowind container package public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api --method PUT \
+            "/users/snowy-storm/packages/container/snowind/visibility" \
+            -f visibility=public
+          echo "Package visibility set to public."
