@@ -1,5 +1,5 @@
 # =============================================================================
-# SnoWind v0.1.1 — 仅需本文件即可部署（无需克隆源码、无需单独 .env）
+# SnoWind v0.1.2 — 仅需本文件即可部署（无需克隆源码、无需单独 .env）
 #
 # 安装者只需：
 #   1. 把本文件放到一个空文件夹里
@@ -16,7 +16,7 @@ name: snowind
 
 services:
   snowind:
-    image: ghcr.io/snowy-storm/snowind:0.1.1
+    image: ghcr.io/snowy-storm/snowind:0.1.2
     depends_on:
       db:
         condition: service_healthy

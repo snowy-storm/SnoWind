@@ -2,7 +2,7 @@
   <h1><b>SnoWind</b></h1>
   <p>
     开源协作 Wiki / 知识库。<br />
-    当前发行版 <strong>v0.1.1</strong>
+    当前发行版 <strong>v0.1.2</strong>
   </p>
 </div>
 
@@ -80,7 +80,7 @@ sudo usermod -aG docker "$USER"
 ```shell
 mkdir snowind
 cd snowind
-curl -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.1/docker-compose.yml
+curl -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.2/docker-compose.yml
 ```
 
 打开文件看第一行：应是以 `#` 开头的 SnoWind 说明。**如果整篇只有 `404: Not Found`，说明下载失败，删掉后重试。** 用编辑器（例如 `nano docker-compose.yml`）按下一节修改密钥和访问地址。保存后：
@@ -108,12 +108,12 @@ docker compose logs -f snowind
 New-Item -ItemType Directory -Force -Path .\snowind | Out-Null
 Set-Location .\snowind
 if (Test-Path .\docker-compose.yml) { Remove-Item .\docker-compose.yml -Force }
-curl.exe -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.1/docker-compose.yml
+curl.exe -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.2/docker-compose.yml
 Get-Content .\docker-compose.yml -TotalCount 5
 ```
 
 前几行必须是 SnoWind 的注释（以 `#` 开头），**不能**是 `404: Not Found`。若仍是 404，也可从发行页下载同一文件：  
-https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.1  
+https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.2  
 
 用记事本打开 `docker-compose.yml`，按下一节修改密钥和访问地址。保存后，**仍在该文件夹中**执行：
 
@@ -163,7 +163,7 @@ Compose 会按新环境变量重建需要的容器。
 
 首次 `docker compose up -d` 会拉取：
 
-- `ghcr.io/snowy-storm/snowind:0.1.1`（SnoWind 应用）
+- `ghcr.io/snowy-storm/snowind:0.1.2`（SnoWind 应用）
 - PostgreSQL、Redis、Typesense
 - `onlyoffice/documentserver`（体积较大）
 
@@ -207,13 +207,13 @@ docker compose down -v          # 停止并删除数据（不可恢复，慎用�
 
 ## 下载到的 docker-compose.yml 只有 404
 
-仓库曾是私有时，未登录访问 `raw.githubusercontent.com` 会返回正文 `404: Not Found`，PowerShell 会把它保存成文件。请删掉后用上面带 `-fL` 的命令重下（仓库现已公开）。也可浏览器打开 [v0.1.1 发行页](https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.1) 下载 `docker-compose.yml`。
+仓库曾是私有时，未登录访问 `raw.githubusercontent.com` 会返回正文 `404: Not Found`，PowerShell 会把它保存成文件。请删掉后用上面带 `-fL` 的命令重下（仓库现已公开）。也可浏览器打开 [v0.1.2 发行页](https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.2) 下载 `docker-compose.yml`。
 
 ---
 
 ## 镜像拉取失败时（unauthorized）
 
-`docker compose up` 若报 `error from registry: unauthorized`，是在拉 `ghcr.io/snowy-storm/snowind:0.1.1`。仓库公开不等于容器包公开，GitHub Packages 默认仍是 **Private**。
+`docker compose up` 若报 `error from registry: unauthorized`，是在拉 `ghcr.io/snowy-storm/snowind:0.1.2`。仓库公开不等于容器包公开，GitHub Packages 默认仍是 **Private**。
 
 仓库所有者请打开：  
 https://github.com/users/snowy-storm/packages/container/package/snowind  
@@ -236,7 +236,7 @@ docker compose up -d
 从本仓库源码自行构建（开发者）：
 
 ```shell
-docker build -t ghcr.io/snowy-storm/snowind:0.1.1 .
+docker build -t ghcr.io/snowy-storm/snowind:0.1.2 .
 ```
 
 中国大陆构建可将 Dockerfile 中的 npm 源换成 npmmirror（见 Dockerfile 的 `NPM_REGISTRY` 参数）。

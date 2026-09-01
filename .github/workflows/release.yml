@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Image tag without v prefix (e.g. 0.1.1)'
+        description: 'Image tag without v prefix (e.g. 0.1.2)'
         required: true
 
 permissions:
