@@ -67,6 +67,30 @@ describe('DocxImportService', () => {
     expect(html).toContain('Hello Word import');
   });
 
+  it('converts an empty Word document to editor JSON', async () => {
+    const service = new DocxImportService(
+      { upload: jest.fn() } as any,
+      { insertAttachment: jest.fn() } as any,
+      {} as any,
+    );
+
+    const doc = new Document({
+      sections: [{ children: [] }],
+    });
+    const buffer = await Packer.toBuffer(doc);
+    const html = await service.convertDocxToHtml(
+      buffer,
+      'workspace',
+      'space',
+      'page',
+      'user',
+    );
+
+    const json = toEditorJson(html || '<p></p>');
+    expect(json.type).toBe('doc');
+    expect(Array.isArray(json.content)).toBe(true);
+  });
+
   it('stores embedded images and emits editor file URLs', async () => {
     const upload = jest.fn().mockResolvedValue(undefined);
     const insertAttachment = jest.fn().mockResolvedValue({});

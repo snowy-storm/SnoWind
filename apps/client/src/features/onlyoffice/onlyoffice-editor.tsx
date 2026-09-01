@@ -81,6 +81,13 @@ export function OnlyOfficeEditor({ request }: Props) {
           height: "100%",
           type: "desktop",
           events: {
+            onError: (event: { data?: { errorDescription?: string } }) => {
+              if (cancelled) return;
+              setError(
+                event?.data?.errorDescription ||
+                  t("Failed to open office document"),
+              );
+            },
             onDocumentReady: () => {
               if (cancelled || request.mode !== "view") return;
               let attempts = 0;

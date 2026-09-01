@@ -116,8 +116,8 @@ export function ConvertWordToPageButton({
     try {
       const result = await convertWordPageToSystemPage(pageId, keepOriginal);
       invalidateOnCreatePage(result.page);
-      queryClient.setQueryData(["pages", result.page.id], result.page);
-      queryClient.setQueryData(["pages", result.page.slugId], result.page);
+      queryClient.removeQueries({ queryKey: ["pages", result.page.id] });
+      queryClient.removeQueries({ queryKey: ["pages", result.page.slugId] });
       if (result.deletedOriginal) {
         invalidateOnDeletePage(pageId);
       }

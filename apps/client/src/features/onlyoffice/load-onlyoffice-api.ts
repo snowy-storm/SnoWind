@@ -11,6 +11,8 @@ declare global {
   }
 }
 
+let pendingLoad: Promise<void> | null = null;
+
 export function loadOnlyOfficeApi(documentServerUrl: string): Promise<void> {
   const src = `${documentServerUrl.replace(/\/+$/, "")}/web-apps/apps/api/documents/api.js`;
 
@@ -18,23 +20,36 @@ export function loadOnlyOfficeApi(documentServerUrl: string): Promise<void> {
     return Promise.resolve();
   }
 
-  const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-  if (existing) {
-    return new Promise((resolve, reject) => {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Failed to load OnlyOffice")), {
-        once: true,
-      });
-    });
+  if (pendingLoad) {
+    return pendingLoad;
   }
 
-  return new Promise((resolve, reject) => {
+  pendingLoad = new Promise<void>((resolve, reject) => {
+    const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+    if (existing) {
+      existing.remove();
+    }
+
     const script = document.createElement("script");
     script.id = SCRIPT_ID;
     script.src = src;
     script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Failed to load OnlyOffice"));
+    script.onload = () => {
+      if (window.DocsAPI?.DocEditor) {
+        resolve();
+        return;
+      }
+      script.remove();
+      reject(new Error("Failed to load OnlyOffice"));
+    };
+    script.onerror = () => {
+      script.remove();
+      reject(new Error("Failed to load OnlyOffice"));
+    };
     document.head.appendChild(script);
+  }).finally(() => {
+    pendingLoad = null;
   });
+
+  return pendingLoad;
 }

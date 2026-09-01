@@ -8,6 +8,7 @@ import { getPageFileFromContent } from "@/features/page/page.utils";
 import { OnlyOfficeEditor } from "@/features/onlyoffice/onlyoffice-editor";
 import { getShareAttachmentJwt } from "@/features/onlyoffice/onlyoffice.utils";
 import { DrawingEditorModal } from "@/features/drawing/components/drawing-editor-modal";
+import { ConvertWordToPageButton } from "@/features/page/components/convert-word-to-page-button";
 import {
   FilePageHeader,
   type FilePagePerson,
@@ -37,6 +38,7 @@ export function WordPage({
   pageId,
   slugId,
   spaceSlug,
+  spaceId,
   editable = false,
   createdAt,
   updatedAt,
@@ -120,6 +122,15 @@ export function WordPage({
         lastUpdatedBy={lastUpdatedBy}
         actions={
           <>
+            {editable && pageId && spaceId && (
+              <ConvertWordToPageButton
+                pageId={pageId}
+                spaceId={spaceId}
+                spaceSlug={spaceSlug ?? ""}
+                fileName={downloadName}
+                disabled={popupOpen || !file?.attachmentId}
+              />
+            )}
             <Button
               variant="default"
               size="compact-sm"

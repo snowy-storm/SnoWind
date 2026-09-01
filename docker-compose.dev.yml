@@ -3,9 +3,10 @@
 # Does not replace the official stack (snowind-app on 3000, db 5435, redis 6379).
 #
 #   pnpm infra:up
-#   docker compose -f docker-compose.dev.yml up -d --build --wait
+#   docker compose -f docker-compose.dev.yml up -d --wait
 #
-# Host ports: Postgres 5444, Redis 2817, Typesense 8109, OnlyOffice 8088
+# Host ports: Postgres 5444, Redis 2817, Typesense 8109
+# OnlyOffice (optional, large image): pnpm infra:office  →  127.0.0.1:8088
 # App on host (`pnpm dev`): frontend 5173, backend 3010.
 
 name: snowind-dev
@@ -17,7 +18,7 @@ services:
       dockerfile: postgres.Dockerfile
     image: snowind-dev-postgres:16-alpine
     container_name: snowind-dev-db
-    pull_policy: build
+    pull_policy: missing
     environment:
       POSTGRES_DB: snowind
       POSTGRES_USER: snowind
@@ -41,7 +42,7 @@ services:
       dockerfile: redis.Dockerfile
     image: snowind-dev-redis:7.2-alpine
     container_name: snowind-dev-redis
-    pull_policy: build
+    pull_policy: missing
     command:
       - redis-server
       - --appendonly
@@ -69,7 +70,7 @@ services:
       dockerfile: typesense.Dockerfile
     image: snowind-dev-typesense:27.1
     container_name: snowind-dev-typesense
-    pull_policy: build
+    pull_policy: missing
     command:
       - --data-dir
       - /data
@@ -95,8 +96,13 @@ services:
       - snowind_dev_typesense_data:/data
 
   onlyoffice:
-    image: onlyoffice/documentserver:8.3
+    profiles: ["office"]
+    build:
+      context: ./docker/dev
+      dockerfile: onlyoffice.Dockerfile
+    image: snowind-dev-onlyoffice:8.3
     container_name: snowind-dev-onlyoffice
+    pull_policy: missing
     environment:
       JWT_ENABLED: "true"
       JWT_SECRET: snowind_dev_onlyoffice_jwt_secret_32chars

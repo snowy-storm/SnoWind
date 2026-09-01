@@ -336,34 +336,38 @@ export class ImportService {
     }
 
     const newPageId = uuid7();
-    let html: string;
-    try {
-      html = await this.docxImportService.convertDocxToHtml(
-        fileBuffer,
-        workspaceId,
-        sourcePage.spaceId,
-        newPageId,
-        userId,
-      );
-    } catch (err) {
-      this.logger.error('Failed to convert Word file to HTML', err);
-      throw new BadRequestException(
-        'Failed to convert Word file. Save the document as .docx and try again.',
-      );
+    const emptyDoc = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [] }],
+    };
+
+    let title: string | null = null;
+    let prosemirrorJson: any = emptyDoc;
+
+    if (fileBuffer.length > 0) {
+      try {
+        const html = await this.docxImportService.convertDocxToHtml(
+          fileBuffer,
+          workspaceId,
+          sourcePage.spaceId,
+          newPageId,
+          userId,
+        );
+        const prosemirrorState = await this.processHTML(html || '<p></p>');
+        const extracted = this.extractTitleAndRemoveHeading(
+          prosemirrorState,
+          { anyHeadingLevel: true },
+        );
+        title = extracted.title;
+        prosemirrorJson = extracted.prosemirrorJson || emptyDoc;
+      } catch (err) {
+        this.logger.warn(
+          'Word file had no convertible content; creating an empty system page',
+          err,
+        );
+      }
     }
 
-    let prosemirrorState: any;
-    try {
-      prosemirrorState = await this.processHTML(html || '<p></p>');
-    } catch (err) {
-      this.logger.error('Failed to process converted Word HTML', err);
-      throw new BadRequestException('Failed to convert Word file');
-    }
-
-    const { title, prosemirrorJson } = this.extractTitleAndRemoveHeading(
-      prosemirrorState,
-      { anyHeadingLevel: true },
-    );
     const pageTitle =
       title ||
       sourcePage.title ||
@@ -373,13 +377,27 @@ export class ImportService {
       ).trim() ||
       'Untitled';
 
+    let ydoc: Buffer | null = null;
+    try {
+      ydoc = await this.createYdoc(prosemirrorJson);
+    } catch (err) {
+      this.logger.warn('Failed to create ydoc for converted Word page', err);
+    }
+
+    let textContent = '';
+    try {
+      textContent = jsonToText(prosemirrorJson);
+    } catch {
+      textContent = pageTitle;
+    }
+
     const createdPage = await this.pageRepo.insertPage({
       id: newPageId,
       slugId: generateSlugId(),
       title: pageTitle,
       content: prosemirrorJson,
-      textContent: jsonToText(prosemirrorJson),
-      ydoc: await this.createYdoc(prosemirrorJson),
+      textContent,
+      ydoc,
       position: await this.getNewPagePosition(sourcePage.spaceId, sourcePage.id),
       parentPageId: sourcePage.id,
       spaceId: sourcePage.spaceId,
@@ -516,7 +534,19 @@ export class ImportService {
   ) {
     let title: string | null = null;
 
-    const content = prosemirrorState.content ?? [];
+    if (!prosemirrorState || typeof prosemirrorState !== 'object') {
+      return {
+        title,
+        prosemirrorJson: {
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [] }],
+        },
+      };
+    }
+
+    const content = Array.isArray(prosemirrorState.content)
+      ? [...prosemirrorState.content]
+      : [];
     const firstNode = content[0];
 
     const isTitleHeading =
