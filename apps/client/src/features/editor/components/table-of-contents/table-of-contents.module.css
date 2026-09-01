@@ -6,7 +6,7 @@
 }
 
 .outline {
-  display: inline-block;
+  display: inline;
   margin-right: 0.4em;
   font-variant-numeric: tabular-nums;
   color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
@@ -17,8 +17,13 @@
   cursor: pointer;
   display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   text-align: start;
+  white-space: normal;
+  overflow-wrap: anywhere;
   word-wrap: break-word;
+  word-break: break-word;
   background-color: transparent;
   color: var(--mantine-color-text);
   font-size: var(--mantine-font-size-sm);

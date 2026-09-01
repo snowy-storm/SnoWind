@@ -14,8 +14,13 @@ import {
   UnstyledButton,
 } from "@mantine/core";
 import { IconInfoCircle } from "@tabler/icons-react";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { userAtom } from "@/features/user/atoms/current-user-atom.ts";
+import {
+  currentPageEditModeAtom,
+  pageEditorAtom,
+} from "@/features/editor/atoms/editor-atoms.ts";
+import { usePageColumnWidth } from "@/features/editor/hooks/use-page-column-width";
 import { CustomAvatar } from "@/components/ui/custom-avatar.tsx";
 import { PageVerificationBadge } from "@/ee/page-verification";
 import { useTranslation } from "react-i18next";
@@ -25,7 +30,6 @@ import { PageEditMode } from "@/features/user/types/user.types.ts";
 import { useAsideTriggerProps } from "@/hooks/use-toggle-aside.tsx";
 import { DeletedPageBanner } from "@/features/page/trash/components/deleted-page-banner.tsx";
 import clsx from "clsx";
-import { currentPageEditModeAtom } from "@/features/editor/atoms/editor-atoms.ts";
 import { EmptyPageGetStarted } from "@/features/editor/components/empty-page/empty-page-get-started";
 
 const MemoizedTitleEditor = React.memo(TitleEditor);
@@ -68,6 +72,8 @@ export function FullEditor({
 }: FullEditorProps) {
   const [user] = useAtom(userAtom);
   const fullPageWidth = user.settings?.preferences?.fullPageWidth;
+  const pageEditor = useAtomValue(pageEditorAtom);
+  const pageColumnWidth = usePageColumnWidth(pageEditor, !fullPageWidth);
   const editorToolbarEnabled =
     user.settings?.preferences?.editorToolbar ?? false;
   const [currentPageEditMode, setCurrentPageEditMode] = useAtom(
@@ -89,8 +95,8 @@ export function FullEditor({
   return (
     <Container
       fluid={fullPageWidth}
-      size={!fullPageWidth && 900}
-      className={classes.editor}
+      size={!fullPageWidth ? pageColumnWidth : undefined}
+      className={clsx(classes.editor, !fullPageWidth && "page-text-column")}
       style={{ display: "flex", flexDirection: "column" }}
     >
       {editorToolbarEnabled && editable && isEditMode && (

@@ -6,6 +6,7 @@ import SettingsSidebar from "@/components/settings/settings-sidebar.tsx";
 import { useAtom } from "jotai";
 import {
   asideStateAtom,
+  asideWidthAtom,
   desktopSidebarAtom,
   mobileSidebarAtom,
   sidebarWidthAtom,
@@ -36,21 +37,30 @@ export default function GlobalAppShell({
   const [desktopOpened] = useAtom(desktopSidebarAtom);
   const [{ isAsideOpen, tab: asideTab }] = useAtom(asideStateAtom);
   const [sidebarWidth, setSidebarWidth] = useAtom(sidebarWidthAtom);
+  const [asideWidth, setAsideWidth] = useAtom(asideWidthAtom);
   const [isResizing, setIsResizing] = useState(false);
+  const [isResizingAside, setIsResizingAside] = useState(false);
   const sidebarRef = useRef(null);
+  const asideRef = useRef<HTMLElement | null>(null);
 
   const startResizing = React.useCallback((mouseDownEvent) => {
     mouseDownEvent.preventDefault();
     setIsResizing(true);
   }, []);
 
+  const startResizingAside = React.useCallback((mouseDownEvent: React.MouseEvent) => {
+    mouseDownEvent.preventDefault();
+    setIsResizingAside(true);
+  }, []);
+
   const stopResizing = React.useCallback(() => {
     setIsResizing(false);
+    setIsResizingAside(false);
   }, []);
 
   const resize = React.useCallback(
     (mouseMoveEvent) => {
-      if (isResizing) {
+      if (isResizing && sidebarRef.current) {
         const newWidth =
           mouseMoveEvent.clientX -
           sidebarRef.current.getBoundingClientRect().left;
@@ -63,9 +73,24 @@ export default function GlobalAppShell({
           return;
         }
         setSidebarWidth(newWidth);
+        return;
+      }
+      if (isResizingAside && asideRef.current) {
+        const newWidth =
+          asideRef.current.getBoundingClientRect().right -
+          mouseMoveEvent.clientX;
+        if (newWidth < 220) {
+          setAsideWidth(220);
+          return;
+        }
+        if (newWidth > 600) {
+          setAsideWidth(600);
+          return;
+        }
+        setAsideWidth(newWidth);
       }
     },
-    [isResizing],
+    [isResizing, isResizingAside, setAsideWidth, setSidebarWidth],
   );
 
   useEffect(() => {
@@ -100,7 +125,7 @@ export default function GlobalAppShell({
       }}
       aside={
         isPageRoute && {
-          width: 350,
+          width: asideWidth,
           breakpoint: "sm",
           collapsed: { mobile: !isAsideOpen, desktop: !isAsideOpen },
         }
@@ -153,6 +178,7 @@ export default function GlobalAppShell({
           className={classes.aside}
           p="md"
           withBorder={false}
+          ref={asideRef}
           aria-label={
             asideTab === "comments"
               ? t("Comments")
@@ -165,6 +191,12 @@ export default function GlobalAppShell({
                     : undefined
           }
         >
+          {isAsideOpen && (
+            <div
+              className={classes.asideResizeHandle}
+              onMouseDown={startResizingAside}
+            />
+          )}
           <Aside />
         </AppShell.Aside>
       )}

@@ -4,7 +4,6 @@
   overflow-x: auto;
   & table {
     overflow-x: hidden;
-    min-width: 700px !important;
   }
 }
 

@@ -10,6 +10,7 @@ import {
 } from "@/features/editor/atoms/editor-atoms";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
+import clsx from "clsx";
 import classes from "./empty-page-get-started.module.css";
 
 type EmptyPageGetStartedProps = {
@@ -60,7 +61,7 @@ export function EmptyPageGetStarted({
   ];
 
   return (
-    <div className={classes.wrapper} contentEditable={false}>
+    <div className={clsx(classes.wrapper, "empty-page-get-started")} contentEditable={false}>
       <span className={classes.label}>{t("Get started with")}</span>
       <div className={classes.chipRow}>
         {chips.map((chip) => (

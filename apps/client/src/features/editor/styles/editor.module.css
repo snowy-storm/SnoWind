@@ -3,6 +3,7 @@
     min-height: calc(100dvh - var(--app-shell-header-height, 45px) - 96px);
     padding: 8px 0;
     margin: 48px auto;
+    overflow: visible;
 
     @media print {
         padding: 0;
@@ -20,6 +21,16 @@
 
     @media print {
         padding-left: 0;
+    }
+}
+
+:global(.page-text-column) .byline {
+    max-width: var(--page-column-width);
+    margin-inline-start: 0;
+    margin-inline-end: auto;
+
+    @media print {
+        max-width: none;
     }
 }
 

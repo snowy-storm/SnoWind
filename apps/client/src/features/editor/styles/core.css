@@ -4,6 +4,9 @@
    * inline base embeds (top offset). One source of truth; if the
    * page header ever changes height, edit only this. */
   --page-header-height: 45px;
+  /* Default page column. Wide tables may grow the container; text and
+   * slash-insert blocks stay this wide and left-aligned. */
+  --page-column-width: 900px;
 }
 
 .ProseMirror {
@@ -316,6 +319,36 @@
   font-weight: 700;
   margin-top: 0;
   margin-bottom: 0.75em;
+}
+
+/* Wide tables grow the page container; everything else stays the 900px
+   text column, left-aligned with the title. */
+.page-text-column .page-title,
+.page-text-column .empty-page-get-started {
+  max-width: var(--page-column-width);
+  margin-inline-start: 0;
+  margin-inline-end: auto;
+}
+
+.page-text-column .ProseMirror > *:not(.tableWrapper) {
+  width: 100%;
+  max-width: calc(var(--page-column-width) - 6rem);
+  margin-inline-start: 0;
+  margin-inline-end: auto;
+}
+
+@media (max-width: $mantine-breakpoint-sm) {
+  .page-text-column .ProseMirror > *:not(.tableWrapper) {
+    max-width: calc(var(--page-column-width) - 2rem);
+  }
+}
+
+@media print {
+  .page-text-column .page-title,
+  .page-text-column .empty-page-get-started,
+  .page-text-column .ProseMirror > *:not(.tableWrapper) {
+    max-width: none;
+  }
 }
 
 .file-page-title .ProseMirror {

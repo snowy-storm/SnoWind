@@ -42,3 +42,26 @@
     display: none;
   }
 }
+
+.asideResizeHandle {
+  width: 3px;
+  cursor: col-resize;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+
+  &:hover,
+  &:active {
+    width: 5px;
+    background: light-dark(
+      var(--mantine-color-gray-4),
+      var(--mantine-color-dark-5)
+    );
+  }
+
+  @media (max-width: $mantine-breakpoint-sm) {
+    display: none;
+  }
+}

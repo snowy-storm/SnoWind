@@ -12,6 +12,8 @@ import {
   sharedPageFullWidthAtom,
   sharedTreeDataAtom,
 } from "@/features/share/atoms/shared-page-atom.ts";
+import { readOnlyEditorAtom } from "@/features/editor/atoms/editor-atoms.ts";
+import { usePageColumnWidth } from "@/features/editor/hooks/use-page-column-width";
 import { isPageInTree } from "@/features/share/utils.ts";
 import { DocumentTitle } from "@/components/ui/document-title.tsx";
 import { PdfPage } from "@/features/page/components/pdf-page";
@@ -38,6 +40,11 @@ export default function SharedPage() {
 
   const sharedTreeData = useAtomValue(sharedTreeDataAtom);
   const fullWidth = useAtomValue(sharedPageFullWidthAtom);
+  const readOnlyEditor = useAtomValue(readOnlyEditorAtom);
+  const pageColumnWidth = usePageColumnWidth(
+    readOnlyEditor,
+    !fullWidth && !isFilePage(data?.page),
+  );
 
   useEffect(() => {
     if (shareId && data) {
@@ -76,7 +83,14 @@ export default function SharedPage() {
         )}
       </DocumentTitle>
 
-      <Container fluid={fullWidth || isFilePage(data.page)} size={fullWidth || isFilePage(data.page) ? undefined : 900} p={0}>
+      <Container
+        fluid={fullWidth || isFilePage(data.page)}
+        size={fullWidth || isFilePage(data.page) ? undefined : pageColumnWidth}
+        p={0}
+        className={
+          fullWidth || isFilePage(data.page) ? undefined : "page-text-column"
+        }
+      >
         {isPdfPage(data.page) || isWordPage(data.page) || isSpreadsheetPage(data.page) || isSlidePage(data.page) ? (
           <div
             className="pdf-page-root"

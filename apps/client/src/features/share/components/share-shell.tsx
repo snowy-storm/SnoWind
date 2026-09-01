@@ -21,6 +21,7 @@ import {
 } from "@/features/share/atoms/shared-page-atom";
 import { buildSharedPageTree } from "@/features/share/utils";
 import {
+  asideWidthAtom,
   desktopSidebarAtom,
   mobileSidebarAtom,
   sidebarWidthAtom,
@@ -63,34 +64,58 @@ export default function ShareShell({
   const toggleToc = useToggleToc(tableOfContentAsideAtom);
   const [fullWidth, setFullWidth] = useAtom(sharedPageFullWidthAtom);
   const [sidebarWidth, setSidebarWidth] = useAtom(sidebarWidthAtom);
+  const [asideWidth, setAsideWidth] = useAtom(asideWidthAtom);
   const [isResizing, setIsResizing] = useState(false);
+  const [isResizingAside, setIsResizingAside] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const asideRef = useRef<HTMLElement | null>(null);
 
   const startResizing = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
   }, []);
 
+  const startResizingAside = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizingAside(true);
+  }, []);
+
   const stopResizing = useCallback(() => {
     setIsResizing(false);
+    setIsResizingAside(false);
   }, []);
 
   const resize = useCallback(
     (e: MouseEvent) => {
-      if (!isResizing || !sidebarRef.current) return;
-      const newWidth =
-        e.clientX - sidebarRef.current.getBoundingClientRect().left;
-      if (newWidth < 220) {
-        setSidebarWidth(220);
+      if (isResizing && sidebarRef.current) {
+        const newWidth =
+          e.clientX - sidebarRef.current.getBoundingClientRect().left;
+        if (newWidth < 220) {
+          setSidebarWidth(220);
+          return;
+        }
+        if (newWidth > 600) {
+          setSidebarWidth(600);
+          return;
+        }
+        setSidebarWidth(newWidth);
         return;
       }
-      if (newWidth > 600) {
-        setSidebarWidth(600);
-        return;
+      if (isResizingAside && asideRef.current) {
+        const newWidth =
+          asideRef.current.getBoundingClientRect().right - e.clientX;
+        if (newWidth < 220) {
+          setAsideWidth(220);
+          return;
+        }
+        if (newWidth > 600) {
+          setAsideWidth(600);
+          return;
+        }
+        setAsideWidth(newWidth);
       }
-      setSidebarWidth(newWidth);
     },
-    [isResizing, setSidebarWidth],
+    [isResizing, isResizingAside, setAsideWidth, setSidebarWidth],
   );
 
   useEffect(() => {
@@ -138,7 +163,7 @@ export default function ShareShell({
         },
       })}
       aside={{
-        width: 300,
+        width: asideWidth,
         breakpoint: "sm",
         collapsed: {
           mobile: !mobileTocOpened,
@@ -255,7 +280,14 @@ export default function ShareShell({
         p="md"
         withBorder={mobileTocOpened}
         className={classes.aside}
+        ref={asideRef}
       >
+        {(tocOpened || mobileTocOpened) && (
+          <div
+            className={classes.asideResizeHandle}
+            onMouseDown={startResizingAside}
+          />
+        )}
         <ScrollArea style={{ height: "80vh" }} scrollbarSize={5} type="scroll">
           <div style={{ paddingBottom: "50px" }}>
             {readOnlyEditor && (
