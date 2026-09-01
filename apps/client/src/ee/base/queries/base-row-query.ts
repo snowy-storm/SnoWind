@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -94,20 +94,28 @@ export function useBaseRowsQuery(
     queryFn: ({ pageParam }) =>
       listRows(pageId!, {
         cursor: pageParam,
-        limit: 100,
+        limit: 5000,
         filter: activeFilter,
         sorts: activeSorts,
       }),
     enabled: !!pageId,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: IBaseRowsPage) =>
-      lastPage.meta?.nextCursor ?? undefined,
+      lastPage.meta?.hasNextPage
+        ? (lastPage.meta.nextCursor ?? undefined)
+        : undefined,
     staleTime: 5 * 60 * 1000,
     // Global QueryClient sets refetchOnMount: false. Row caches are shared
     // across table and kanban filters, so remounting a view must pick up
     // stale marks from the other view (and from WS invalidation).
     refetchOnMount: true,
   });
+
+  useEffect(() => {
+    if (query.hasNextPage && !query.isFetchingNextPage) {
+      query.fetchNextPage();
+    }
+  }, [query.hasNextPage, query.isFetchingNextPage, query.fetchNextPage]);
 
   const refPages = useMemo(
     () =>

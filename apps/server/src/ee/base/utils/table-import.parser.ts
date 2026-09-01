@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 
-export const TABLE_IMPORT_MAX_ROWS = 10_000;
+export const TABLE_IMPORT_MAX_ROWS = 5_000;
 export const TABLE_IMPORT_MAX_COLS = 200;
 
 const VALID_EXTENSIONS = new Set(['.xlsx', '.xls', '.csv']);
@@ -94,10 +94,28 @@ function trimGrid(grid: string[][]): string[][] {
  * Build a dense 2D grid and expand merged ranges so every covered cell
  * receives the top-left value of the original merge.
  */
-export function sheetToGrid(sheet: XLSX.WorkSheet): string[][] {
-  if (!sheet || !sheet['!ref']) return [];
+function usedRange(sheet: XLSX.WorkSheet): XLSX.Range | null {
+  let range = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
+  for (const key of Object.keys(sheet)) {
+    if (key[0] === '!') continue;
+    const cell = XLSX.utils.decode_cell(key);
+    if (!range) {
+      range = { s: { r: cell.r, c: cell.c }, e: { r: cell.r, c: cell.c } };
+      continue;
+    }
+    range.s.r = Math.min(range.s.r, cell.r);
+    range.s.c = Math.min(range.s.c, cell.c);
+    range.e.r = Math.max(range.e.r, cell.r);
+    range.e.c = Math.max(range.e.c, cell.c);
+  }
+  return range;
+}
 
-  const range = XLSX.utils.decode_range(sheet['!ref']);
+export function sheetToGrid(sheet: XLSX.WorkSheet): string[][] {
+  if (!sheet) return [];
+
+  const range = usedRange(sheet);
+  if (!range) return [];
   const rowCount = range.e.r - range.s.r + 1;
   const colCount = range.e.c - range.s.c + 1;
 
@@ -168,6 +186,7 @@ function readWorkbook(buffer: Buffer, filename: string): XLSX.WorkBook {
     type: 'buffer',
     cellDates: true,
     cellText: true,
+    sheetRows: 0,
   };
   if (ext === '.csv') {
     opts.codepage = 65001;

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { IsOptional, IsString, IsNotEmpty, IsArray, IsObject, IsEnum, IsNumber, IsBoolean, ArrayNotEmpty } from 'class-validator';
+import { IsOptional, IsString, IsNotEmpty, IsArray, IsObject, IsEnum, IsNumber, IsBoolean, ArrayNotEmpty, Max, Min } from 'class-validator';
 import { PaginationOptions } from '@snowind/db/pagination/pagination-options';
 import { Transform, Type } from 'class-transformer';
 
@@ -277,6 +277,8 @@ export class ListRowsDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  @Min(1)
+  @Max(5000)
   limit?: number;
 
   @IsOptional()

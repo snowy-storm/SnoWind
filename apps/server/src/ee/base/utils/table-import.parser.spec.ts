@@ -130,4 +130,13 @@ describe('parseTableFile', () => {
       ['Lin', '21'],
     ]);
   });
+
+  it('imports every data row beyond the first 100', () => {
+    const data = [['Name'], ...Array.from({ length: 250 }, (_, i) => [`R${i + 1}`])];
+    const buf = workbookBuffer([{ name: 'All', data }]);
+    const parsed = parseTableFile(buf, 'big.xlsx');
+    expect(parsed.sheets[0].rows).toHaveLength(250);
+    expect(parsed.sheets[0].rows[0]).toEqual(['R1']);
+    expect(parsed.sheets[0].rows[249]).toEqual(['R250']);
+  });
 });

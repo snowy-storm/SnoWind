@@ -306,18 +306,24 @@ export class BaseRowRepo {
 
     const limit = Math.min(
       Math.max(1, Number(pagination?.limit ?? 50) || 50),
-      200,
+      5000,
     );
-    const rows = await query.limit(limit).execute();
+    const rawOffset = Number.parseInt(pagination?.cursor ?? '0', 10);
+    const offset =
+      Number.isFinite(rawOffset) && rawOffset > 0 ? rawOffset : 0;
+
+    const rows = await query.limit(limit + 1).offset(offset).execute();
+    const hasNextPage = rows.length > limit;
+    const items = hasNextPage ? rows.slice(0, limit) : rows;
 
     return {
-      items: rows,
+      items,
       meta: {
         limit,
-        hasNextPage: rows.length >= limit,
-        hasPrevPage: false,
-        nextCursor: null,
-        prevCursor: null,
+        hasNextPage,
+        hasPrevPage: offset > 0,
+        nextCursor: hasNextPage ? String(offset + limit) : null,
+        prevCursor: offset > 0 ? String(Math.max(0, offset - limit)) : null,
       },
     };
   }
