@@ -5,12 +5,12 @@ import {
   IconPencil,
   IconWindowMaximize,
 } from "@tabler/icons-react";
-import { saveAs } from "file-saver";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { getFileUrl, isOnlyOfficeEnabled } from "@/lib/config.ts";
 import { getPageFileFromContent } from "@/features/page/page.utils";
 import { OnlyOfficeEditor } from "@/features/onlyoffice/onlyoffice-editor";
+import { useOnlyOfficeFileSession } from "@/features/onlyoffice/use-onlyoffice-file-session";
 import {
   getShareAttachmentJwt,
   isOnlyOfficeFile,
@@ -21,7 +21,6 @@ import {
   FilePageHeader,
   type FilePagePerson,
 } from "@/features/page/components/file-page-header";
-import { queryClient } from "@/main";
 import { useHasFeature } from "@/ee/hooks/use-feature";
 import { Feature } from "@/ee/features";
 import classes from "./pdf-page.module.css";
@@ -40,8 +39,6 @@ type SpreadsheetPageProps = {
   lastUpdatedBy?: FilePagePerson;
 };
 
-type ModalMode = "view" | "edit";
-
 export function SpreadsheetPage({
   title,
   content,
@@ -56,11 +53,18 @@ export function SpreadsheetPage({
   lastUpdatedBy,
 }: SpreadsheetPageProps) {
   const { t } = useTranslation();
-  const [downloading, setDownloading] = useState(false);
-  const [popupOpen, setPopupOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<ModalMode>("view");
-  const [previewKey, setPreviewKey] = useState(0);
   const canUseBases = useHasFeature(Feature.BASES);
+  const {
+    editorRef,
+    popupOpen,
+    modalMode,
+    saving,
+    previewKey,
+    downloading,
+    openPopup,
+    closePopup,
+    downloadFile,
+  } = useOnlyOfficeFileSession({ pageId, slugId });
 
   const file = useMemo(() => getPageFileFromContent(content), [content]);
   const previewUrl = file?.src ? getFileUrl(file.src) : null;
@@ -80,47 +84,6 @@ export function SpreadsheetPage({
         shareJwt,
       }
     : null;
-
-  const handleDownload = async () => {
-    if (!previewUrl) return;
-    setDownloading(true);
-    try {
-      const response = await fetch(previewUrl, { credentials: "include" });
-      if (!response.ok) {
-        throw new Error("download failed");
-      }
-      const blob = await response.blob();
-      saveAs(blob, downloadName);
-    } catch {
-      window.open(previewUrl, "_blank", "noopener,noreferrer");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const refreshAfterEdit = () => {
-    setPreviewKey((key) => key + 1);
-    if (pageId) {
-      queryClient.invalidateQueries({ queryKey: ["pages", pageId] });
-    }
-    if (slugId) {
-      queryClient.invalidateQueries({ queryKey: ["pages", slugId] });
-    }
-  };
-
-  const openPopup = (mode: ModalMode) => {
-    setModalMode(mode);
-    setPopupOpen(true);
-  };
-
-  const closePopup = () => {
-    const wasEditing = modalMode === "edit";
-    setPopupOpen(false);
-    setModalMode("view");
-    if (wasEditing) {
-      refreshAfterEdit();
-    }
-  };
 
   const previewHint = !file?.attachmentId
     ? t("Failed to load spreadsheet")
@@ -177,8 +140,8 @@ export function SpreadsheetPage({
               variant="default"
               size="compact-sm"
               leftSection={<IconDownload size={16} />}
-              onClick={handleDownload}
-              disabled={!previewUrl}
+              onClick={() => void downloadFile(previewUrl, downloadName)}
+              disabled={!previewUrl || saving}
               loading={downloading}
             >
               {t("Download")}
@@ -206,17 +169,25 @@ export function SpreadsheetPage({
       {officeRequest && canOpenOffice && (
         <DrawingEditorModal
           opened={popupOpen}
-          onClose={closePopup}
+          onClose={() => void closePopup()}
           title={downloadName}
+          isSaving={saving}
           defaultMaximized={false}
-          closeOnClickOutside
+          closeOnClickOutside={!saving}
           actions={
-            <Button size="compact-sm" variant="default" onClick={closePopup}>
+            <Button
+              size="compact-sm"
+              variant="default"
+              onClick={() => void closePopup()}
+              loading={saving}
+              disabled={saving}
+            >
               {t(modalMode === "edit" ? "Exit edit" : "Close")}
             </Button>
           }
         >
           <OnlyOfficeEditor
+            ref={editorRef}
             key={`${modalMode}-${previewKey}`}
             request={{ ...officeRequest, mode: modalMode }}
           />

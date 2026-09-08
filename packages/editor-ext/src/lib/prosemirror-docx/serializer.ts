@@ -105,6 +105,9 @@ export class DocxSerializerState {
 
   nextRunOpts?: IRunOptions;
 
+  /** Persistent run defaults for a scoped region (e.g. table cells). */
+  defaultRunOpts?: IRunOptions;
+
   current: ParagraphChild[] = [];
 
   currentLink?: { link: string; children: IRunOptions[] };
@@ -243,7 +246,14 @@ export class DocxSerializerState {
 
   text(text: string | null | undefined, opts?: IRunOptions) {
     if (!text) return;
-    this.current.push(new TextRun({ text, ...this.nextRunOpts, ...opts }));
+    this.current.push(
+      new TextRun({
+        text,
+        ...this.defaultRunOpts,
+        ...this.nextRunOpts,
+        ...opts,
+      }),
+    );
     delete this.nextRunOpts;
   }
 
@@ -329,12 +339,20 @@ export class DocxSerializerState {
   table(
     node: Node,
     opts: {
-      getCellOptions?: (cell: Node) => ITableCellOptions;
+      getCellOptions?: (cell: Node) => Omit<ITableCellOptions, 'children'>;
       getRowOptions?: (row: Node) => Omit<ITableRowOptions, 'children'>;
       tableOptions?: Omit<ITableOptions, 'rows'>;
+      getCellParagraphOptions?: (cell: Node) => IParagraphOptions | undefined;
+      getCellRunOptions?: (cell: Node) => IRunOptions | undefined;
     } = {},
   ) {
-    const { getCellOptions, getRowOptions, tableOptions } = opts;
+    const {
+      getCellOptions,
+      getRowOptions,
+      tableOptions,
+      getCellParagraphOptions,
+      getCellRunOptions,
+    } = opts;
     const actualChildren = this.children;
     const rows: TableRow[] = [];
     node.content.forEach((row) => {
@@ -350,7 +368,11 @@ export class DocxSerializerState {
       this.maxImageWidth = MAX_IMAGE_WIDTH / (row.content.childCount || 1);
       row.content.forEach((cell) => {
         this.children = [];
-        this.renderContent(cell);
+        const prevRunOpts = this.defaultRunOpts;
+        const cellRunOpts = getCellRunOptions?.(cell);
+        if (cellRunOpts) this.defaultRunOpts = { ...prevRunOpts, ...cellRunOpts };
+        this.renderContent(cell, getCellParagraphOptions?.(cell));
+        this.defaultRunOpts = prevRunOpts;
         const tableCellOpts: Mutable<ITableCellOptions> = {
           children: this.children.length > 0 ? this.children : [new Paragraph('')],
         };
@@ -406,8 +428,10 @@ export class DocxSerializerState {
   closeBlock(node: Node, props?: IParagraphOptions) {
     const paragraph = new Paragraph({
       children: this.current,
-      ...this.nextParentParagraphOpts,
+      // Parent-scoped options (list numbering, table cell styles) win over
+      // node-level defaults so nested contexts can override body indent/fonts.
       ...props,
+      ...this.nextParentParagraphOpts,
     });
     this.current = [];
     delete this.nextParentParagraphOpts;
@@ -524,6 +548,9 @@ export class DocxSerializerStateAsync {
   footnotes: IFootnotes = {};
 
   nextRunOpts?: IRunOptions;
+
+  /** Persistent run defaults for a scoped region (e.g. table cells). */
+  defaultRunOpts?: IRunOptions;
 
   current: ParagraphChild[] = [];
 
@@ -669,7 +696,14 @@ export class DocxSerializerStateAsync {
 
   text(text: string | null | undefined, opts?: IRunOptions) {
     if (!text) return;
-    this.current.push(new TextRun({ text, ...this.nextRunOpts, ...opts }));
+    this.current.push(
+      new TextRun({
+        text,
+        ...this.defaultRunOpts,
+        ...this.nextRunOpts,
+        ...opts,
+      }),
+    );
     delete this.nextRunOpts;
   }
 
@@ -755,12 +789,20 @@ export class DocxSerializerStateAsync {
   async table(
     node: Node,
     opts: {
-      getCellOptions?: (cell: Node) => ITableCellOptions;
+      getCellOptions?: (cell: Node) => Omit<ITableCellOptions, 'children'>;
       getRowOptions?: (row: Node) => Omit<ITableRowOptions, 'children'>;
       tableOptions?: Omit<ITableOptions, 'rows'>;
+      getCellParagraphOptions?: (cell: Node) => IParagraphOptions | undefined;
+      getCellRunOptions?: (cell: Node) => IRunOptions | undefined;
     } = {},
   ) {
-    const { getCellOptions, getRowOptions, tableOptions } = opts;
+    const {
+      getCellOptions,
+      getRowOptions,
+      tableOptions,
+      getCellParagraphOptions,
+      getCellRunOptions,
+    } = opts;
     const actualChildren = this.children;
     const rows: TableRow[] = [];
 
@@ -784,8 +826,12 @@ export class DocxSerializerStateAsync {
       for (let cellIndex = 0; cellIndex < row.content.childCount; cellIndex += 1) {
         const cell = row.content.child(cellIndex);
         this.children = [];
+        const prevRunOpts = this.defaultRunOpts;
+        const cellRunOpts = getCellRunOptions?.(cell);
+        if (cellRunOpts) this.defaultRunOpts = { ...prevRunOpts, ...cellRunOpts };
         // eslint-disable-next-line no-await-in-loop
-        await this.renderContent(cell); // Ensure order
+        await this.renderContent(cell, getCellParagraphOptions?.(cell));
+        this.defaultRunOpts = prevRunOpts;
         const tableCellOpts: Mutable<ITableCellOptions> = {
           children: this.children.length > 0 ? this.children : [new Paragraph('')],
         };
@@ -866,8 +912,10 @@ export class DocxSerializerStateAsync {
   closeBlock(node: Node, props?: IParagraphOptions) {
     const paragraph = new Paragraph({
       children: this.current,
-      ...this.nextParentParagraphOpts,
+      // Parent-scoped options (list numbering, table cell styles) win over
+      // node-level defaults so nested contexts can override body indent/fonts.
       ...props,
+      ...this.nextParentParagraphOpts,
     });
     this.current = [];
     delete this.nextParentParagraphOpts;

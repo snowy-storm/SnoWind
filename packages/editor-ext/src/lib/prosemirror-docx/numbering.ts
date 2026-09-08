@@ -32,19 +32,20 @@ const bullets = Array(3)
     ...basicIndentStyle((level + 1) / 2),
   }));
 
-// Word Multilevel List linked to Heading 1–6: 1 / 1.1 / 1.1.1 …
+// Word Multilevel List linked to Heading 1–9: 1 / 1.1 / 1.1.1 …
+// Headings stay left-aligned with no outline indent (Chinese export rule).
 const headingOutline = Array.from({ length: 9 }, (_, level) => {
   const text = Array.from({ length: level + 1 }, (_unused, i) => `%${i + 1}`).join('.');
   return {
     level,
     format: LevelFormat.DECIMAL,
     text,
-    alignment: AlignmentType.START,
+    alignment: AlignmentType.LEFT,
     style: {
       paragraph: {
         indent: {
-          left: convertInchesToTwip(level * 0.25),
-          hanging: convertInchesToTwip(0.3),
+          left: 0,
+          firstLine: 0,
         },
       },
     },

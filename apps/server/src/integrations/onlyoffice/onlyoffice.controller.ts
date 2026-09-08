@@ -22,6 +22,7 @@ import { SkipTransform } from '../../common/decorators/skip-transform.decorator'
 import { StorageService } from '../storage/storage.service';
 import { OnlyOfficeService } from './onlyoffice.service';
 import {
+  OnlyOfficeAwaitSaveDto,
   OnlyOfficeConfigDto,
   OnlyOfficePublicConfigDto,
 } from './dto/onlyoffice.dto';
@@ -69,6 +70,22 @@ export class OnlyOfficeController {
       dto.jwt,
       workspace.id,
       dto.lang,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('await-save')
+  @HttpCode(HttpStatus.OK)
+  async awaitSave(
+    @Body() dto: OnlyOfficeAwaitSaveDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    return this.onlyOfficeService.awaitSaveForUser(
+      dto.attachmentId,
+      dto.since,
+      user,
+      workspace.id,
     );
   }
 

@@ -344,6 +344,10 @@ function rawLabels(
   if (fromType === 'number') {
     return typeof cell === 'number' && Number.isFinite(cell) ? [String(cell)] : [];
   }
+  if (fromType === 'autoNumber') {
+    const display = formatAutoNumberLabel(cell, fromOpts);
+    return display ? [display] : [];
+  }
   if (fromType === 'checkbox') {
     if (cell === true) return ['true'];
     if (cell === false) return ['false'];
@@ -386,6 +390,25 @@ function convertNonChoiceCell(
 ): unknown {
   if (cell == null || cell === '') return null;
   if (isFormulaError(cell)) return null;
+
+  if (fromType === 'autoNumber') {
+    if (toType === 'text' || toType === 'longText') {
+      const text = formatAutoNumberLabel(cell, fromOpts);
+      if (!text) return null;
+      return toType === 'text' ? text.slice(0, TEXT_CHAR_LIMIT) : text;
+    }
+    if (toType === 'number') {
+      return parseAutoNumberCell(cell);
+    }
+    if (toType === 'url') {
+      return parseUrl(formatAutoNumberLabel(cell, fromOpts));
+    }
+    if (toType === 'email') {
+      return parseEmail(formatAutoNumberLabel(cell, fromOpts));
+    }
+    // date / checkbox / person / page / file — sequence values are not meaningful
+    return null;
+  }
 
   if (toType === 'text' || toType === 'longText') {
     const text = stringifyCell(cell, fromType, fromOpts);
@@ -444,6 +467,36 @@ function convertNonChoiceCell(
   }
 
   return null;
+}
+
+function parseAutoNumberCell(cell: unknown): number | null {
+  if (typeof cell === 'number' && Number.isFinite(cell)) {
+    return Math.trunc(cell);
+  }
+  if (typeof cell === 'string') {
+    const trimmed = cell.trim();
+    if (!trimmed) return null;
+    if (/^\d+$/.test(trimmed)) return Number(trimmed);
+    const match = trimmed.match(/(\d+)\s*$/);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
+function formatAutoNumberLabel(
+  cell: unknown,
+  opts: Record<string, unknown>,
+): string | null {
+  const n = parseAutoNumberCell(cell);
+  if (n == null) {
+    return typeof cell === 'string' && cell.trim() ? cell.trim() : null;
+  }
+  const prefix = typeof opts.prefix === 'string' ? opts.prefix : '';
+  const digits =
+    typeof opts.digits === 'number' && opts.digits > 0
+      ? Math.min(Math.floor(opts.digits), 12)
+      : 4;
+  return `${prefix}${String(n).padStart(digits, '0')}`;
 }
 
 function stringifyCell(

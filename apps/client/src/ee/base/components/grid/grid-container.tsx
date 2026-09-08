@@ -544,8 +544,9 @@ export function GridContainer({
   const bodyGridTemplateColumns = `${gridTemplateColumns} minmax(0, 1fr)`;
 
   const handleAddRow = useCallback(() => {
-    onAddRow?.();
-  }, [onAddRow]);
+    const lastRow = rows[rows.length - 1];
+    onAddRow?.(lastRow?.id);
+  }, [onAddRow, rows]);
 
   const handleAddGroupedRow = useCallback(
     (afterRowId: string | undefined, cells: Record<string, unknown>) => {

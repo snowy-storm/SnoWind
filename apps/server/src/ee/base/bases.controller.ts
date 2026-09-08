@@ -33,6 +33,7 @@ import {
   DeleteRowDto,
   DeleteRowsDto,
   DeleteViewDto,
+  ExpandPagesDto,
   ExportBaseDto,
   ListBasesDto,
   ListRowsDto,
@@ -309,6 +310,15 @@ export class BasesController {
     );
     res.header('Content-Type', 'text/csv; charset=utf-8');
     return res.send('\uFEFF' + csv);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('pages/expand')
+  async expandPages(
+    @Body() dto: ExpandPagesDto,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    return this.baseService.expandPages(dto.pageIds ?? [], workspace.id);
   }
 
   @HttpCode(HttpStatus.OK)

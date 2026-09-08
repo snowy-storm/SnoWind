@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Popover, ActionIcon, Text, Tooltip } from "@mantine/core";
+import { Popover, Text, Tooltip } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useQuery } from "@tanstack/react-query";
 import { IconX, IconFileDescription } from "@tabler/icons-react";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
 import { IBaseProperty } from "@/ee/base/types/base.types";
-import { useResolvePage } from "@/ee/base/reference/reference-store";
+import { useResolvePage, useHydratePages } from "@/ee/base/reference/reference-store";
 import { useBaseQuery } from "@/ee/base/queries/base-query";
 import { searchSuggestions } from "@/features/search/services/search-service";
 import { buildPageUrl, getPageTitle } from "@/features/page/page.utils";
@@ -15,6 +14,7 @@ import { usePageQuery } from "@/features/page/queries/page-query";
 import { extractPageSlugId } from "@/lib";
 import { useListKeyboardNav } from "@/ee/base/hooks/use-list-keyboard-nav";
 import cellClasses from "@/ee/base/styles/cells.module.css";
+import type { ResolvedPage } from "@/ee/base/queries/base-page-resolver-query";
 
 type CellPageProps = {
   value: unknown;
@@ -70,6 +70,7 @@ export function CellPage({
   if (isEditing) {
     return (
       <PagePicker
+        basePageId={property.pageId}
         pageId={pageId}
         resolvedPage={resolvedPage ?? null}
         spaceId={base?.spaceId}
@@ -115,8 +116,10 @@ function PagePill({ page }: { page: PillPage }) {
 
   return (
     <Tooltip label={title} withinPortal openDelay={400} disabled={!title}>
-      <Link
-        to={url}
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
         className={cellClasses.pagePill}
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
@@ -127,12 +130,13 @@ function PagePill({ page }: { page: PillPage }) {
           <IconFileDescription size={14} className={cellClasses.pagePillIconFallback} />
         )}
         <span className={cellClasses.pagePillText}>{title}</span>
-      </Link>
+      </a>
     </Tooltip>
   );
 }
 
 type PagePickerProps = {
+  basePageId: string;
   pageId: string | null;
   resolvedPage: { id: string; slugId: string; title: string | null; icon: string | null; space: { id: string; slug: string; name: string } | null } | null;
   spaceId?: string;
@@ -141,6 +145,7 @@ type PagePickerProps = {
 };
 
 function PagePicker({
+  basePageId,
   pageId,
   resolvedPage,
   spaceId,
@@ -151,6 +156,7 @@ function PagePicker({
   const [search, setSearch] = useState("");
   const [debouncedSearch] = useDebouncedValue(search, 250);
   const searchRef = useRef<HTMLInputElement>(null);
+  const hydratePages = useHydratePages(basePageId);
 
   useEffect(() => {
     requestAnimationFrame(() => searchRef.current?.focus());
@@ -190,18 +196,52 @@ function PagePicker({
     }
     if (linkedPage && !linkedRef.current) {
       linkedRef.current = true;
+      const resolved: ResolvedPage = {
+        id: linkedPage.id,
+        slugId: linkedPage.slugId,
+        title: linkedPage.title ?? null,
+        icon: linkedPage.icon ?? null,
+        spaceId: linkedPage.spaceId,
+        space: linkedPage.space
+          ? {
+              id: linkedPage.space.id,
+              slug: linkedPage.space.slug,
+              name: linkedPage.space.name,
+            }
+          : null,
+      };
+      hydratePages([resolved]);
       onCommit(linkedPage.id);
     }
-  }, [pastedSlugId, linkedPage, onCommit]);
+  }, [pastedSlugId, linkedPage, onCommit, hydratePages]);
 
   const { activeIndex, setActiveIndex, handleNavKey, setOptionRef } =
     useListKeyboardNav(suggestions.length, [debouncedSearch]);
 
   const handleSelect = useCallback(
     (id: string) => {
+      const picked = suggestions.find((s) => s.id === id);
+      if (picked) {
+        hydratePages([
+          {
+            id: picked.id,
+            slugId: picked.slugId,
+            title: picked.title,
+            icon: picked.icon,
+            spaceId: picked.spaceId,
+            space: picked.space
+              ? {
+                  id: picked.space.id,
+                  slug: picked.space.slug,
+                  name: picked.space.name,
+                }
+              : null,
+          },
+        ]);
+      }
       onCommit(id === pageId ? null : id);
     },
-    [pageId, onCommit],
+    [pageId, onCommit, suggestions, hydratePages],
   );
 
   const handleRemove = useCallback(() => {

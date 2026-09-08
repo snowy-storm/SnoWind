@@ -4,6 +4,9 @@ import { maxTopLevelTableWidth } from "@snowind/editor-ext";
 
 export const PAGE_COLUMN_WIDTH = 900;
 
+/** Extra room so a grown page column still shows the table's right border. */
+const TABLE_WIDTH_EDGE_SLACK = 8;
+
 function editorPaddingX(editor: Editor): number {
   try {
     const cs = getComputedStyle(editor.view.dom);
@@ -18,9 +21,9 @@ function editorPaddingX(editor: Editor): number {
 /**
  * Default page column is 900px, centered. When a top-level table is
  * wider than the content box, the column grows to fit that table
- * (plus editor padding). Mantine Container is `width: 100%` with
- * `max-width`, so an open/resized right aside shrinks `<main>` and
- * caps the column automatically.
+ * (plus editor padding and a small right-edge slack). Mantine
+ * Container is `width: 100%` with `max-width`, so an open/resized
+ * right aside shrinks `<main>` and caps the column automatically.
  */
 export function usePageColumnWidth(
   editor: Editor | null,
@@ -41,7 +44,10 @@ export function usePageColumnWidth(
       }
       const tableW = maxTopLevelTableWidth(editor.state.doc);
       setWidth(
-        Math.max(PAGE_COLUMN_WIDTH, Math.round(tableW + editorPaddingX(editor))),
+        Math.max(
+          PAGE_COLUMN_WIDTH,
+          Math.round(tableW + editorPaddingX(editor) + TABLE_WIDTH_EDGE_SLACK),
+        ),
       );
     };
 

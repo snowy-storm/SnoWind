@@ -54,6 +54,41 @@ function describeConversion(
     }
   }
 
+  if (to === "autoNumber") {
+    return {
+      message:
+        "Existing cells will be replaced with a new sequence (prefix + number).",
+      lossy: true,
+    };
+  }
+
+  if (from === "autoNumber") {
+    if (to === "text" || to === "longText") {
+      return {
+        message: "Cells will keep the formatted sequence (prefix + number).",
+        lossy: false,
+      };
+    }
+    if (to === "number") {
+      return {
+        message: "Cells will keep the numeric sequence value (prefix removed).",
+        lossy: false,
+      };
+    }
+    if (to === "select" || to === "status" || to === "multiSelect") {
+      return {
+        message:
+          "Formatted sequence values will become options, and existing values are preserved.",
+        lossy: false,
+      };
+    }
+    return {
+      message:
+        "Sequence values cannot be converted to this type and will be cleared.",
+      lossy: true,
+    };
+  }
+
   const CHOICE_TARGETS = new Set<BasePropertyType>([
     "select",
     "multiSelect",

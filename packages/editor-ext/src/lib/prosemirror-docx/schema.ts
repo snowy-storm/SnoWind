@@ -1,4 +1,10 @@
-import { FootnoteReferenceRun, HeadingLevel, Paragraph, ShadingType } from 'docx';
+import {
+  FootnoteReferenceRun,
+  HeadingLevel,
+  Paragraph,
+  ShadingType,
+  TableLayoutType,
+} from 'docx';
 import { Node } from 'prosemirror-model';
 import {
   DocxSerializerAsync,
@@ -12,6 +18,24 @@ import {
   createHeadingNumbering,
   HEADING_OUTLINE_REFERENCE,
 } from './numbering';
+import {
+  AlignmentType,
+  WidthType,
+  PAGE_CONTENT_WIDTH_PX,
+  PAGE_CONTENT_WIDTH_TWIPS,
+  headingRunOptions,
+  headingParagraphOptions,
+  bodyParagraphOptions,
+  bodyRunOptions,
+  tableHeaderRunOptions,
+  tableBodyRunOptions,
+  tableCellParagraphOptions,
+  equalColumnWidths,
+  countTableColumns,
+  createExportSectionConfig,
+  TABLE_HEADER_FILL,
+  SINGLE_LINE_SPACING,
+} from './chinese-styles';
 
 const DOCX_IMAGE_TYPES: ImageType[] = ['jpg', 'png', 'gif', 'bmp'];
 
@@ -53,13 +77,50 @@ function toDocxColor(input?: string): string | undefined {
   return undefined;
 }
 
-// Images and diagrams embed via the image resolver; the URL (with its file
-// extension) is passed through so docx can infer the image type.
+function tableExportOptions(node: Node) {
+  const columnCount = countTableColumns(node) || 1;
+  const columnWidths = equalColumnWidths(columnCount);
+
+  return {
+    tableOptions: {
+      width: { size: PAGE_CONTENT_WIDTH_TWIPS, type: WidthType.DXA },
+      columnWidths,
+      layout: TableLayoutType.FIXED,
+    },
+    getCellOptions: (cell: Node) => {
+      const colspan = Number(cell.attrs.colspan ?? 1) || 1;
+      const isHeader = cell.type.name === 'tableHeader';
+      return {
+        // pct units are fiftieths of a percent (5000 = 100%).
+        width: {
+          size: Math.round((5000 * colspan) / columnCount),
+          type: WidthType.PERCENTAGE,
+        },
+        shading: isHeader
+          ? { type: ShadingType.CLEAR, fill: TABLE_HEADER_FILL }
+          : undefined,
+      };
+    },
+    getCellParagraphOptions: () => tableCellParagraphOptions(),
+    getCellRunOptions: (cell: Node) =>
+      cell.type.name === 'tableHeader'
+        ? tableHeaderRunOptions()
+        : tableBodyRunOptions(),
+  };
+}
+
+// Images embed inline (not floated), centered, full content width.
 const renderImage: NodeSerializerAsync[string] = async (state, node) => {
   const src = node.attrs?.src || node.attrs?.attachmentId;
   if (src) {
     try {
+      state.maxImageWidth = PAGE_CONTENT_WIDTH_PX;
       await state.image(src, 100, 'center', undefined, inferDocxImageType(src));
+      state.addParagraphOptions({
+        alignment: AlignmentType.CENTER,
+        indent: { left: 0, firstLine: 0 },
+        spacing: SINGLE_LINE_SPACING,
+      });
     } catch {
       // Unrenderable/missing image: skip rather than fail the whole export.
     }
@@ -71,28 +132,54 @@ const renderImage: NodeSerializerAsync[string] = async (state, node) => {
 const renderFileLine: NodeSerializerAsync[string] = (state, node) => {
   const label =
     node.attrs?.name || node.attrs?.src || node.attrs?.url || 'attachment';
-  state.text(label);
-  state.closeBlock(node);
+  state.text(label, bodyRunOptions());
+  state.closeBlock(node, bodyParagraphOptions());
 };
 
 const renderEmbedLine: NodeSerializerAsync[string] = (state, node) => {
   const label = node.attrs?.src || node.attrs?.url || 'embed';
-  state.text(label);
-  state.closeBlock(node);
+  state.text(label, bodyRunOptions());
+  state.closeBlock(node, bodyParagraphOptions());
 };
+
+/** Collect table nodes under a sync block; do not descend into nested tables. */
+function collectTables(node: Node): Node[] {
+  const tables: Node[] = [];
+  node.forEach((child) => {
+    if (child.type.name === 'table') {
+      tables.push(child);
+      return;
+    }
+    child.descendants((desc) => {
+      if (desc.type.name === 'table') {
+        tables.push(desc);
+        return false;
+      }
+      return undefined;
+    });
+  });
+  return tables;
+}
 
 export const defaultAsyncNodes: NodeSerializerAsync = {
   text(state, node) {
     state.text(node.text ?? '');
   },
   async paragraph(state, node) {
+    const prev = state.defaultRunOpts;
+    state.defaultRunOpts = { ...bodyRunOptions(), ...prev };
     await state.renderInline(node);
-    state.closeBlock(node);
+    state.defaultRunOpts = prev;
+    state.closeBlock(node, bodyParagraphOptions());
   },
   async heading(state, node) {
-    await state.renderInline(node);
     const level = Math.max(1, Math.min(9, node.attrs.level ?? 1));
     const levelIndex = level - 1;
+    const prev = state.defaultRunOpts;
+    state.defaultRunOpts = { ...headingRunOptions(level), ...prev };
+    await state.renderInline(node);
+    state.defaultRunOpts = prev;
+
     const heading =
       level <= 6
         ? [
@@ -105,7 +192,9 @@ export const defaultAsyncNodes: NodeSerializerAsync = {
           ][levelIndex]
         : undefined;
     const numbered = Boolean(node.attrs?.numbered);
-    const options: Record<string, unknown> = {};
+    const options: Record<string, unknown> = {
+      ...headingParagraphOptions(),
+    };
     if (heading) options.heading = heading;
     if (level > 6) options.style = `Heading${level}`;
     if (numbered) {
@@ -124,11 +213,17 @@ export const defaultAsyncNodes: NodeSerializerAsync = {
     state.closeBlock(node, options as any);
   },
   async blockquote(state, node) {
-    await state.renderContent(node, { style: 'IntenseQuote' });
+    await state.renderContent(node, {
+      ...bodyParagraphOptions(),
+      style: 'IntenseQuote',
+    });
   },
   async codeBlock(state, node) {
     await state.renderContent(node);
-    state.closeBlock(node);
+    state.closeBlock(node, {
+      ...bodyParagraphOptions(),
+      indent: { firstLine: 0 },
+    });
   },
   horizontalRule(state, node) {
     state.closeBlock(node, { thematicBreak: true });
@@ -157,7 +252,7 @@ export const defaultAsyncNodes: NodeSerializerAsync = {
     await state.renderContent(node);
   },
   async table(state, node) {
-    await state.table(node);
+    await state.table(node, tableExportOptions(node));
   },
   // SnoWind stores LaTeX in attrs.text.
   mathInline(state, node) {
@@ -178,14 +273,23 @@ export const defaultAsyncNodes: NodeSerializerAsync = {
   embed: renderEmbedLine,
   youtube: renderEmbedLine,
   async callout(state, node) {
-    await state.renderContent(node, { style: 'IntenseQuote' });
+    await state.renderContent(node, {
+      ...bodyParagraphOptions(),
+      style: 'IntenseQuote',
+    });
   },
   async details(state, node) {
     await state.renderContent(node);
   },
   async detailsSummary(state, node) {
+    const prev = state.defaultRunOpts;
+    state.defaultRunOpts = { ...headingRunOptions(4), ...prev };
     await state.renderInline(node);
-    state.closeBlock(node, { heading: HeadingLevel.HEADING_4 });
+    state.defaultRunOpts = prev;
+    state.closeBlock(node, {
+      heading: HeadingLevel.HEADING_4,
+      ...headingParagraphOptions(),
+    });
   },
   async detailsContent(state, node) {
     await state.renderContent(node);
@@ -196,8 +300,12 @@ export const defaultAsyncNodes: NodeSerializerAsync = {
   async column(state, node) {
     await state.renderContent(node);
   },
+  // Sync blocks: drop the chrome; export only tables inside the block.
   async transclusionSource(state, node) {
-    await state.renderContent(node);
+    for (const table of collectTables(node)) {
+      // eslint-disable-next-line no-await-in-loop
+      await state.table(table, tableExportOptions(table));
+    }
   },
   mention(state, node) {
     state.text(`@${node.attrs?.label ?? ''}`);
@@ -282,85 +390,50 @@ export const defaultMarks: MarkSerializer = {
   },
 };
 
+function headingStyle(level: number) {
+  const run = headingRunOptions(level);
+  return {
+    run,
+    paragraph: {
+      ...headingParagraphOptions(),
+      keepNext: true,
+      keepLines: true,
+      outlineLevel: level - 1,
+    },
+  };
+}
+
 export async function pageNodeToDocxBuffer(
   doc: Node,
   getImageBuffer: DocxImageResolver,
 ): Promise<Buffer> {
   const serializer = new DocxSerializerAsync(defaultAsyncNodes, defaultMarks);
+  const section = createExportSectionConfig();
   const wordDoc = await serializer.serializeAsync(
     doc,
-    { getImageBuffer },
-    // docx's built-in heading styles are blue (#2E74B5 / #1F4D78). The editor
-    // has no heading color, so override the default heading run colors to the
-    // normal text color. Sizes/italics mirror docx's own defaults so only the
-    // color changes.
+    { getImageBuffer, sections: [section] },
     () =>
       ({
         styles: {
           default: {
-            document: { paragraph: { spacing: { after: 160 } } },
-            heading1: {
-              run: { color: '000000', size: 32 },
-              paragraph: {
-                keepNext: true,
-                keepLines: true,
-                spacing: { before: 240, after: 0 },
-              },
+            document: {
+              run: bodyRunOptions(),
+              paragraph: bodyParagraphOptions(),
             },
-            heading2: {
-              run: { color: '000000', size: 26 },
-              paragraph: {
-                keepNext: true,
-                keepLines: true,
-                spacing: { before: 40, after: 0 },
-              },
-            },
-            heading3: {
-              run: { color: '000000', size: 24 },
-              paragraph: {
-                keepNext: true,
-                keepLines: true,
-                spacing: { before: 40, after: 0 },
-              },
-            },
-            heading4: {
-              run: { color: '000000', italics: true },
-              paragraph: {
-                keepNext: true,
-                keepLines: true,
-                spacing: { before: 40, after: 0 },
-              },
-            },
-            heading5: {
-              run: { color: '000000' },
-              paragraph: {
-                keepNext: true,
-                keepLines: true,
-                spacing: { before: 40, after: 0 },
-              },
-            },
-            heading6: {
-              run: { color: '000000' },
-              paragraph: {
-                keepNext: true,
-                keepLines: true,
-                spacing: { before: 40, after: 0 },
-              },
-            },
+            heading1: headingStyle(1),
+            heading2: headingStyle(2),
+            heading3: headingStyle(3),
+            heading4: headingStyle(4),
+            heading5: headingStyle(5),
+            heading6: headingStyle(6),
           },
           paragraphStyles: [7, 8, 9].map((level) => ({
             id: `Heading${level}`,
             name: `Heading ${level}`,
-            basedOn: 'Heading6',
+            basedOn: 'Normal',
             next: 'Normal',
             quickFormat: true,
-            paragraph: {
-              outlineLevel: level - 1,
-              keepNext: true,
-              keepLines: true,
-              spacing: { before: 40, after: 0 },
-            },
-            run: { color: '000000', size: 20 },
+            ...headingStyle(level),
           })),
         },
       }) as any,

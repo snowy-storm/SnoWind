@@ -36,6 +36,11 @@ export function useCreatePropertyMutation() {
           };
         },
       );
+      if (newProperty.type === "autoNumber") {
+        queryClient.invalidateQueries({
+          queryKey: ["base-rows", newProperty.pageId],
+        });
+      }
     },
     onError: (error) => {
       notifications.show({
@@ -57,9 +62,13 @@ export function useUpdatePropertyMutation() {
           if (!old) return old;
           return {
             ...old,
-            properties: old.properties.map((p) =>
-              p.id === result.property.id ? result.property : p,
-            ),
+            properties: old.properties.map((p) => {
+              if (p.id === result.property.id) return result.property;
+              if (variables.isPrimary === true) {
+                return { ...p, isPrimary: false };
+              }
+              return p;
+            }),
           };
         },
       );

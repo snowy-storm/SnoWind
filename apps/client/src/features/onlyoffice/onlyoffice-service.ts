@@ -23,3 +23,14 @@ export async function fetchOnlyOfficeConfig(opts: {
   });
   return req.data;
 }
+
+export async function awaitOnlyOfficeSave(opts: {
+  attachmentId: string;
+  since: string;
+}): Promise<{ saved: boolean; updatedAt: string }> {
+  const req = await api.post("/onlyoffice/await-save", {
+    attachmentId: opts.attachmentId,
+    since: opts.since,
+  });
+  return req.data;
+}

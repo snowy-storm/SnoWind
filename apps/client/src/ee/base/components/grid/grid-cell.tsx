@@ -175,6 +175,7 @@ export const GridCell = memo(function GridCell({
         isPinned={Boolean(isPinned)}
         pinOffset={pinOffset}
         pageId={pageId}
+        showExpand
       />
     );
   }

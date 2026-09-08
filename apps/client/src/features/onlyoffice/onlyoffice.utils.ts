@@ -18,6 +18,7 @@ export type OnlyOfficeEditorRequest = {
 
 export type OnlyOfficeConfigResponse = {
   documentServerUrl: string;
+  fileUpdatedAt?: string;
   config: Record<string, unknown> & { token?: string };
 };
 

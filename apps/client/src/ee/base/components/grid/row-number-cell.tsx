@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from "react";
-import { Checkbox } from "@mantine/core";
-import { IconGripVertical } from "@tabler/icons-react";
+import { Checkbox, Tooltip } from "@mantine/core";
+import { IconGripVertical, IconArrowsDiagonal } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 import { useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import { useRowSelection } from "@/ee/base/hooks/use-row-selection";
@@ -8,6 +9,7 @@ import { focusedCellAtomFamily } from "@/ee/base/atoms/base-atoms";
 import { FocusedCell } from "@/ee/base/types/base.types";
 import { useBaseEditable } from "@/ee/base/context/base-editable";
 import { useGridRowOrder } from "@/ee/base/context/grid-row-order";
+import { useRowExpand } from "@/ee/base/context/row-expand";
 import classes from "@/ee/base/styles/grid.module.css";
 
 type RowNumberCellProps = {
@@ -16,6 +18,7 @@ type RowNumberCellProps = {
   isPinned: boolean;
   pinOffset?: number;
   pageId: string;
+  showExpand?: boolean;
 };
 
 export const RowNumberCell = memo(function RowNumberCell({
@@ -24,11 +27,14 @@ export const RowNumberCell = memo(function RowNumberCell({
   isPinned,
   pinOffset,
   pageId,
+  showExpand,
 }: RowNumberCellProps) {
+  const { t } = useTranslation();
   const { isSelected, toggle } = useRowSelection(pageId);
   const selected = isSelected(rowId);
   const editable = useBaseEditable();
   const getOrderedRowIds = useGridRowOrder();
+  const onExpandRow = useRowExpand();
 
   const setFocusedCell = useSetAtom(
     focusedCellAtomFamily(pageId) as PrimitiveAtom<FocusedCell>,
@@ -105,6 +111,28 @@ export const RowNumberCell = memo(function RowNumberCell({
           </span>
         )}
         <span className={classes.rowNumberIndex}>{rowIndex + 1}</span>
+        {showExpand && onExpandRow && (
+          <span className={classes.rowExpandAnchor}>
+            <Tooltip label={t("Expand")} position="bottom" openDelay={400}>
+              <button
+                type="button"
+                tabIndex={-1}
+                data-base-row-expand=""
+                className={classes.rowExpandButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onExpandRow(rowId);
+                }}
+                onDoubleClick={(e) => e.stopPropagation()}
+                aria-label={t("Expand row {{number}}", {
+                  number: rowIndex + 1,
+                })}
+              >
+                <IconArrowsDiagonal size={13} />
+              </button>
+            </Tooltip>
+          </span>
+        )}
       </div>
     </div>
   );

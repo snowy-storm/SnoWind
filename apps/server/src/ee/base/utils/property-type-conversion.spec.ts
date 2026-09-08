@@ -124,6 +124,45 @@ describe('convertPropertyColumn', () => {
 
     expect(result.cells).toEqual([12, 1234.5, null, null]);
   });
+
+  it('converts autoNumber to text with prefix+padded digits', () => {
+    const result = convertPropertyColumn({
+      fromType: 'autoNumber',
+      toType: 'text',
+      fromTypeOptions: { prefix: 'TASK-', digits: 4 },
+      toTypeOptions: {},
+      cells: [7, 'TASK-0008', null],
+      generateChoiceId: ids(),
+    });
+
+    expect(result.cells).toEqual(['TASK-0007', 'TASK-0008', null]);
+  });
+
+  it('converts autoNumber to number by stripping the prefix', () => {
+    const result = convertPropertyColumn({
+      fromType: 'autoNumber',
+      toType: 'number',
+      fromTypeOptions: { prefix: 'xt', digits: 4 },
+      toTypeOptions: {},
+      cells: [12, 'xt0040', null],
+      generateChoiceId: ids(),
+    });
+
+    expect(result.cells).toEqual([12, 40, null]);
+  });
+
+  it('clears autoNumber cells when converting to unsupported types', () => {
+    const result = convertPropertyColumn({
+      fromType: 'autoNumber',
+      toType: 'date',
+      fromTypeOptions: { prefix: 'A-', digits: 3 },
+      toTypeOptions: {},
+      cells: [1, 'A-002'],
+      generateChoiceId: ids(),
+    });
+
+    expect(result.cells).toEqual([null, null]);
+  });
 });
 
 describe('parsers', () => {

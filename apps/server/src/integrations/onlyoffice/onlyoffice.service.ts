@@ -20,15 +20,15 @@ import {
   JwtType,
 } from '../../core/auth/dto/jwt-payload';
 import { getMimeType } from '../../common/helpers';
-import { ONLYOFFICE_STATUS } from './onlyoffice.constants';
 import {
   buildDocumentKey,
   fileExtFromUrl,
   getOnlyOfficeDocumentType,
   isOnlyOfficeFile,
+  isPersistableSaveStatus,
   isSameOfficeFamily,
   normalizeFileExt,
-  stripTrailingSlash,
+  resolveOfficeEditorAccess,
 } from './onlyoffice.util';
 
 export type OnlyOfficeCallbackBody = {
@@ -39,9 +39,15 @@ export type OnlyOfficeCallbackBody = {
   [key: string]: unknown;
 };
 
+type SaveWaiter = {
+  sinceMs: number;
+  resolve: (updatedAt: Date) => void;
+};
+
 @Injectable()
 export class OnlyOfficeService {
   private readonly logger = new Logger(OnlyOfficeService.name);
+  private readonly saveWaiters = new Map<string, SaveWaiter[]>();
 
   constructor(
     private readonly environmentService: EnvironmentService,
@@ -66,12 +72,14 @@ export class OnlyOfficeService {
     attachment: Attachment;
     workspaceId: string;
     canEdit: boolean;
+    canSave?: boolean;
     user?: Pick<User, 'id' | 'name'>;
     lang?: string;
   }) {
     this.assertEnabled();
 
     const { attachment, workspaceId, canEdit, user } = opts;
+    const canSave = opts.canSave ?? canEdit;
     const ext = normalizeFileExt(attachment.fileExt || attachment.fileName);
     const documentType = getOnlyOfficeDocumentType(ext);
     if (!documentType || !isOnlyOfficeFile(ext, attachment.mimeType)) {
@@ -82,7 +90,7 @@ export class OnlyOfficeService {
       attachmentId: attachment.id,
       workspaceId,
       userId: user?.id,
-      canEdit,
+      canEdit: canSave,
     });
 
     const appUrl = this.environmentService.getOnlyOfficeAppUrl();
@@ -155,6 +163,7 @@ export class OnlyOfficeService {
     const token = this.signOnlyOfficeJwt(config);
     return {
       documentServerUrl: this.environmentService.getOnlyOfficeUrl(),
+      fileUpdatedAt: new Date(attachment.updatedAt as Date).toISOString(),
       config: { ...config, token },
     };
   }
@@ -174,11 +183,16 @@ export class OnlyOfficeService {
 
     const { canEdit } =
       await this.pageAccessService.validateCanViewWithPermissions(page, user);
+    const access = resolveOfficeEditorAccess({
+      canEditPage: canEdit,
+      mode,
+    });
 
     return this.buildEditorConfig({
       attachment,
       workspaceId,
-      canEdit: mode === 'view' ? false : canEdit,
+      canEdit: access.editorCanEdit,
+      canSave: access.canSave,
       user,
       lang,
     });
@@ -263,10 +277,7 @@ export class OnlyOfficeService {
     const callback = this.decodeCallbackBody(body, authorization);
     const status = callback.status;
 
-    if (
-      status !== ONLYOFFICE_STATUS.READY_TO_SAVE &&
-      status !== ONLYOFFICE_STATUS.FORCE_SAVE
-    ) {
+    if (!isPersistableSaveStatus(status)) {
       return { error: 0 };
     }
 
@@ -303,22 +314,71 @@ export class OnlyOfficeService {
       }
 
       const nextExt = downloadedExt || currentExt;
-      await this.attachmentService.replaceFileContent({
+      const updated = await this.attachmentService.replaceFileContent({
         attachment,
         buffer,
         fileExt: nextExt,
       });
+      if (!updated) {
+        throw new Error('Attachment update returned empty result');
+      }
       if (payload.userId && attachment.pageId) {
         await this.pageRepo.updatePage(
           { lastUpdatedById: payload.userId },
           attachment.pageId,
         );
       }
+      this.notifySaveWaiters(
+        payload.attachmentId,
+        new Date(updated.updatedAt as Date),
+      );
       return { error: 0 };
     } catch (err) {
       this.logger.error('Failed to save OnlyOffice document', err);
       return { error: 1 };
     }
+  }
+
+  async awaitSaveForUser(
+    attachmentId: string,
+    since: string,
+    user: User,
+    workspaceId: string,
+  ): Promise<{ saved: boolean; updatedAt: string }> {
+    const attachment = await this.requireOfficeAttachment(
+      attachmentId,
+      workspaceId,
+    );
+    const page = await this.requirePage(attachment);
+    const { canEdit } =
+      await this.pageAccessService.validateCanViewWithPermissions(page, user);
+    if (!canEdit) {
+      throw new ForbiddenException();
+    }
+
+    const sinceMs = new Date(since).getTime();
+    if (Number.isNaN(sinceMs)) {
+      throw new BadRequestException('Invalid since timestamp');
+    }
+
+    const currentMs = new Date(attachment.updatedAt as Date).getTime();
+    if (currentMs > sinceMs) {
+      return {
+        saved: true,
+        updatedAt: new Date(attachment.updatedAt as Date).toISOString(),
+      };
+    }
+
+    const updatedAt = await this.waitForSave(attachmentId, sinceMs, 25000);
+    if (!updatedAt) {
+      const latest = await this.attachmentRepo.findById(attachmentId);
+      const latestDate = new Date((latest?.updatedAt as Date) || attachment.updatedAt);
+      return {
+        saved: latestDate.getTime() > sinceMs,
+        updatedAt: latestDate.toISOString(),
+      };
+    }
+    return { saved: true, updatedAt: updatedAt.toISOString() };
   }
 
   contentTypeFor(attachment: Attachment): string {
@@ -397,12 +457,96 @@ export class OnlyOfficeService {
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${dsToken}` },
     });
-    if (!response.ok) {
-      throw new Error(
-        `Failed to download edited file from OnlyOffice (${response.status})`,
-      );
+    if (response.ok) {
+      return Buffer.from(await response.arrayBuffer());
     }
-    return Buffer.from(await response.arrayBuffer());
+
+    if (response.status === 401 || response.status === 403) {
+      const retry = await fetch(url);
+      if (retry.ok) {
+        return Buffer.from(await retry.arrayBuffer());
+      }
+    }
+
+    throw new Error(
+      `Failed to download edited file from OnlyOffice (${response.status})`,
+    );
+  }
+
+  private notifySaveWaiters(attachmentId: string, updatedAt: Date) {
+    const waiters = this.saveWaiters.get(attachmentId);
+    if (!waiters?.length) {
+      return;
+    }
+    const remaining: SaveWaiter[] = [];
+    for (const waiter of waiters) {
+      if (updatedAt.getTime() > waiter.sinceMs) {
+        waiter.resolve(updatedAt);
+      } else {
+        remaining.push(waiter);
+      }
+    }
+    if (remaining.length) {
+      this.saveWaiters.set(attachmentId, remaining);
+    } else {
+      this.saveWaiters.delete(attachmentId);
+    }
+  }
+
+  private waitForSave(
+    attachmentId: string,
+    sinceMs: number,
+    timeoutMs: number,
+  ): Promise<Date | null> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value: Date | null) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+
+      const waiter: SaveWaiter = {
+        sinceMs,
+        resolve: (updatedAt) => {
+          clearTimeout(timer);
+          finish(updatedAt);
+        },
+      };
+
+      const timer = setTimeout(() => {
+        const current = this.saveWaiters.get(attachmentId);
+        if (current) {
+          this.saveWaiters.set(
+            attachmentId,
+            current.filter((item) => item !== waiter),
+          );
+          if (!this.saveWaiters.get(attachmentId)?.length) {
+            this.saveWaiters.delete(attachmentId);
+          }
+        }
+        finish(null);
+      }, timeoutMs);
+
+      const existing = this.saveWaiters.get(attachmentId) || [];
+      existing.push(waiter);
+      this.saveWaiters.set(attachmentId, existing);
+
+      void this.attachmentRepo.findById(attachmentId).then((attachment) => {
+        if (!attachment) return;
+        const updatedAt = new Date(attachment.updatedAt as Date);
+        if (updatedAt.getTime() > sinceMs) {
+          clearTimeout(timer);
+          this.saveWaiters.set(
+            attachmentId,
+            (this.saveWaiters.get(attachmentId) || []).filter(
+              (item) => item !== waiter,
+            ),
+          );
+          finish(updatedAt);
+        }
+      });
+    });
   }
 
   private mapLang(lang?: string): string {

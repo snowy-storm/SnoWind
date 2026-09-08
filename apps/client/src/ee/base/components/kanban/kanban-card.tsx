@@ -1,10 +1,16 @@
 import { forwardRef, useCallback, useRef } from "react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
-import { IBase, IBaseRow, IBaseView } from "@/ee/base/types/base.types";
+import {
+  AutoNumberTypeOptions,
+  IBase,
+  IBaseRow,
+  IBaseView,
+} from "@/ee/base/types/base.types";
 import { CardField } from "@/ee/base/components/kanban/card-field/card-field";
 import { useKanbanCardDnd } from "@/ee/base/hooks/use-kanban-card-dnd";
 import { BaseDropEdgeIndicator } from "@/ee/base/components/grid/base-drop-edge-indicator";
+import { formatAutoNumberDisplay } from "@/ee/base/formatters/cell-formatters";
 import classes from "@/ee/base/styles/kanban.module.css";
 
 type KanbanCardProps = {
@@ -19,7 +25,18 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
   function KanbanCard({ base, view, row, columnKey, onOpen }, ref) {
     const { t } = useTranslation();
     const primary = base.properties.find((p) => p.isPrimary);
-    const title = primary ? (row.cells[primary.id] as string | undefined) : undefined;
+    const rawTitle = primary ? row.cells[primary.id] : undefined;
+    const title =
+      primary?.type === "autoNumber"
+        ? formatAutoNumberDisplay(
+            rawTitle,
+            primary.typeOptions as AutoNumberTypeOptions | undefined,
+          )
+        : typeof rawTitle === "string"
+          ? rawTitle
+          : rawTitle == null
+            ? undefined
+            : String(rawTitle);
 
     const visibleIds = view.config?.visiblePropertyIds ?? [];
     const propertyOrder = view.config?.propertyOrder;

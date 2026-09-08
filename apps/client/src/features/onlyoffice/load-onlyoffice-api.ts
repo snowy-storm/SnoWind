@@ -1,12 +1,24 @@
 const SCRIPT_ID = "onlyoffice-api-js";
 
+export type OnlyOfficeEditorInstance = {
+  destroyEditor: () => void;
+  createConnector?: () => {
+    executeMethod?: (
+      name: string,
+      args?: unknown[],
+      callback?: () => void,
+    ) => void;
+  };
+  serviceCommand?: (command: string, data: string) => void;
+};
+
 declare global {
   interface Window {
     DocsAPI?: {
       DocEditor: new (
         id: string,
         config: Record<string, unknown>,
-      ) => { destroyEditor: () => void };
+      ) => OnlyOfficeEditorInstance;
     };
   }
 }

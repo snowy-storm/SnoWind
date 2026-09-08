@@ -2,8 +2,10 @@ import {
   buildDocumentKey,
   getOnlyOfficeDocumentType,
   isOnlyOfficeFile,
+  isPersistableSaveStatus,
   isSameOfficeFamily,
   normalizeFileExt,
+  resolveOfficeEditorAccess,
 } from './onlyoffice.util';
 
 describe('onlyoffice.util', () => {
@@ -46,5 +48,26 @@ describe('onlyoffice.util', () => {
     );
     expect(key).toBe(`11111111111111111111111111111111${updatedAt.getTime()}`);
     expect(key).toMatch(/^[0-9a-zA-Z._-]+$/);
+  });
+
+  it('treats numeric and string callback statuses as persistable', () => {
+    expect(isPersistableSaveStatus(2)).toBe(true);
+    expect(isPersistableSaveStatus('2')).toBe(true);
+    expect(isPersistableSaveStatus(6)).toBe(true);
+    expect(isPersistableSaveStatus('6')).toBe(true);
+    expect(isPersistableSaveStatus(1)).toBe(false);
+    expect(isPersistableSaveStatus(4)).toBe(false);
+  });
+
+  it('keeps save permission when the editor is opened in view mode', () => {
+    expect(
+      resolveOfficeEditorAccess({ canEditPage: true, mode: 'view' }),
+    ).toEqual({ editorCanEdit: false, canSave: true });
+    expect(
+      resolveOfficeEditorAccess({ canEditPage: true, mode: 'edit' }),
+    ).toEqual({ editorCanEdit: true, canSave: true });
+    expect(
+      resolveOfficeEditorAccess({ canEditPage: false, mode: 'edit' }),
+    ).toEqual({ editorCanEdit: false, canSave: false });
   });
 });

@@ -33,3 +33,13 @@ export class OnlyOfficePublicConfigDto {
   @IsString()
   lang?: string;
 }
+
+export class OnlyOfficeAwaitSaveDto {
+  @IsUUID()
+  @IsNotEmpty()
+  attachmentId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  since: string;
+}

@@ -55,7 +55,7 @@ function buildColumns(properties: IBaseProperty[]): ColumnDef<IBaseRow, unknown>
         maxSize: MAX_COLUMN_WIDTH,
         enableResizing: true,
         enableSorting: false,
-        enableHiding: !property.isPrimary,
+        enableHiding: true,
         meta: { property },
       });
     }
@@ -68,7 +68,7 @@ function buildColumns(properties: IBaseProperty[]): ColumnDef<IBaseRow, unknown>
       maxSize: MAX_COLUMN_WIDTH,
       enableResizing: true,
       enableSorting: true,
-      enableHiding: !property.isPrimary,
+      enableHiding: true,
       meta: { property },
     });
   });
@@ -339,6 +339,8 @@ export function useBaseTable(
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+    // View sorts are applied server-side (incl. numeric autoNumber); keep row order.
+    manualSorting: true,
     columnResizeMode: "onChange",
     enableColumnResizing: true,
     enableSorting: true,

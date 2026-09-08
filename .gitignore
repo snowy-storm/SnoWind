@@ -49,3 +49,6 @@ coverage/
 .next/
 .turbo/
 .cache/
+
+# Local Aliyun ACR notes (username; do not publish)
+.cursor/rules/aliyun-acr.mdc

@@ -1,6 +1,5 @@
 import { Text, Badge, Tooltip, Group } from "@mantine/core";
 import { IconCheck, IconFileDescription } from "@tabler/icons-react";
-import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { sanitizeUrl } from "@snowind/editor-ext";
 import {
@@ -8,6 +7,7 @@ import {
   SelectTypeOptions,
   NumberTypeOptions,
   DateTypeOptions,
+  AutoNumberTypeOptions,
   isFormulaErrorCell,
 } from "@/ee/base/types/base.types";
 import { choiceColor } from "@/ee/base/components/cells/choice-color";
@@ -21,6 +21,7 @@ import {
   formatDateDisplay,
   formatTimestamp,
   formatLongTextPreview,
+  formatAutoNumberDisplay,
 } from "@/ee/base/formatters/cell-formatters";
 import { buildPageUrl, getPageTitle } from "@/features/page/page.utils";
 import { FileValue } from "@/ee/base/components/cells/cell-file";
@@ -69,6 +70,8 @@ export function CardField({ property, value, pageId }: CardFieldProps) {
       return <EmailField value={value} />;
     case "formula":
       return <FormulaField value={value} property={property} />;
+    case "autoNumber":
+      return <AutoNumberField value={value} property={property} />;
     default:
       return (
         <Text size="xs" lineClamp={1}>
@@ -83,6 +86,25 @@ function TextField({ value }: { value: unknown }) {
   if (!text) return null;
   return (
     <Text size="sm" lineClamp={2}>
+      {text}
+    </Text>
+  );
+}
+
+function AutoNumberField({
+  value,
+  property,
+}: {
+  value: unknown;
+  property: IBaseProperty;
+}) {
+  const text = formatAutoNumberDisplay(
+    value,
+    property.typeOptions as AutoNumberTypeOptions | undefined,
+  );
+  if (!text) return null;
+  return (
+    <Text size="sm" style={{ fontVariantNumeric: "tabular-nums" }} lineClamp={1}>
       {text}
     </Text>
   );
@@ -239,8 +261,10 @@ function PageField({
 
   return (
     <Tooltip label={title} withinPortal openDelay={400} disabled={!title}>
-      <Link
-        to={url}
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
         className={cellClasses.pagePill}
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
@@ -251,7 +275,7 @@ function PageField({
           <IconFileDescription size={14} className={cellClasses.pagePillIconFallback} />
         )}
         <span className={cellClasses.pagePillText}>{title}</span>
-      </Link>
+      </a>
     </Tooltip>
   );
 }

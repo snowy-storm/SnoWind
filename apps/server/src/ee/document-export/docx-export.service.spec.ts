@@ -224,4 +224,112 @@ describe('DocxExportService', () => {
     expect(numberingXml).toContain('%1.%2');
     expect(numberingXml).toContain('%1.%2.%3.%4.%5.%6.%7.%8.%9');
   });
+
+  it('applies Chinese page margins and a centered footer page number', async () => {
+    const service = new DocxExportService(
+      storageService as any,
+      attachmentRepo as any,
+    );
+
+    const buffer = await service.exportPageAsDocx({
+      title: 'Margins',
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Body' }],
+          },
+        ],
+      },
+    } as any);
+
+    const zip = await JSZip.loadAsync(buffer);
+    const documentXml = await zip.file('word/document.xml')!.async('string');
+    // A4 portrait: 210×297mm ≈ 11906×16838 twips
+    expect(documentXml).toMatch(/w:pgSz[^>]*w:w="11906"/);
+    expect(documentXml).toMatch(/w:pgSz[^>]*w:h="16838"/);
+    expect(documentXml).toMatch(/w:pgSz[^>]*w:orient="portrait"/);
+    // 2.54cm top/bottom = 1440 twips; 3.18cm left/right ≈ 1802 twips
+    expect(documentXml).toMatch(/w:pgMar[^>]*w:top="1440"/);
+    expect(documentXml).toMatch(/w:pgMar[^>]*w:bottom="1440"/);
+    expect(documentXml).toMatch(/w:pgMar[^>]*w:left="1802"/);
+    expect(documentXml).toMatch(/w:pgMar[^>]*w:right="1802"/);
+
+    const footerName = Object.keys(zip.files).find((name) =>
+      /^word\/footer\d*\.xml$/i.test(name),
+    );
+    expect(footerName).toBeTruthy();
+    const footerXml = await zip.file(footerName!)!.async('string');
+    expect(footerXml).toMatch(/w:fldChar|w:instrText|PAGE/i);
+    expect(footerXml).toMatch(/w:jc\s+[^>]*w:val="center"/);
+  });
+
+  it('exports only tables from sync blocks and drops other sync content', async () => {
+    const service = new DocxExportService(
+      storageService as any,
+      attachmentRepo as any,
+    );
+
+    const buffer = await service.exportPageAsDocx({
+      title: '',
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'transclusionSource',
+            attrs: { id: 'sync-1' },
+            content: [
+              {
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'Should not appear' }],
+              },
+              {
+                type: 'table',
+                content: [
+                  {
+                    type: 'tableRow',
+                    content: [
+                      {
+                        type: 'tableHeader',
+                        attrs: { colspan: 1, rowspan: 1, colwidth: [100] },
+                        content: [
+                          {
+                            type: 'paragraph',
+                            content: [{ type: 'text', text: 'Header Cell' }],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  {
+                    type: 'tableRow',
+                    content: [
+                      {
+                        type: 'tableCell',
+                        attrs: { colspan: 1, rowspan: 1, colwidth: [100] },
+                        content: [
+                          {
+                            type: 'paragraph',
+                            content: [{ type: 'text', text: 'Body Cell' }],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    } as any);
+
+    const zip = await JSZip.loadAsync(buffer);
+    const documentXml = await zip.file('word/document.xml')!.async('string');
+    expect(documentXml).toContain('Header Cell');
+    expect(documentXml).toContain('Body Cell');
+    expect(documentXml).not.toContain('Should not appear');
+    expect(documentXml).toContain('D9D9D9');
+  });
 });

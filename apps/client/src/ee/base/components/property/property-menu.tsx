@@ -17,6 +17,8 @@ import {
   IconChevronRight,
   IconSettings,
   IconMathFunction,
+  IconStar,
+  IconStarOff,
 } from "@tabler/icons-react";
 import {
   IBaseProperty,
@@ -280,6 +282,14 @@ export function PropertyMenuContent({
           onOptions={() => setPanel("options")}
           onDelete={() => setPanel("confirmDelete")}
           onEditFormula={onEditFormula}
+          onTogglePrimary={() => {
+            updatePropertyMutation.mutate({
+              propertyId: property.id,
+              pageId: property.pageId,
+              isPrimary: !property.isPrimary,
+            });
+            onClose();
+          }}
         />
       )}
       {panel === "rename" && (
@@ -500,6 +510,7 @@ function MainPanel({
   onOptions,
   onDelete,
   onEditFormula,
+  onTogglePrimary,
 }: {
   property: IBaseProperty;
   onRename: () => void;
@@ -507,28 +518,39 @@ function MainPanel({
   onOptions: () => void;
   onDelete: () => void;
   onEditFormula?: () => void;
+  onTogglePrimary: () => void;
 }) {
   const { t } = useTranslation();
 
   const isSystem = isSystemPropertyType(property.type);
   const isPending = property.pendingType != null;
+  const isAutoNumber = property.type === "autoNumber";
 
   const hasOptions =
-    !isSystem &&
     !isPending &&
-    (property.type === "select" ||
-      property.type === "multiSelect" ||
-      property.type === "status" ||
-      property.type === "number" ||
-      property.type === "date" ||
-      property.type === "text" ||
-      property.type === "longText" ||
-      property.type === "checkbox" ||
-      property.type === "url" ||
-      property.type === "email");
+    (isAutoNumber ||
+      (!isSystem &&
+        (property.type === "select" ||
+          property.type === "multiSelect" ||
+          property.type === "status" ||
+          property.type === "number" ||
+          property.type === "date" ||
+          property.type === "text" ||
+          property.type === "longText" ||
+          property.type === "checkbox" ||
+          property.type === "url" ||
+          property.type === "email")));
 
   const typeDef = propertyTypes.find((pt) => pt.type === property.type);
   const TypeIcon = typeDef?.icon;
+  const canBeTitle =
+    !isPending &&
+    property.type !== "file" &&
+    property.type !== "checkbox" &&
+    property.type !== "formula" &&
+    property.type !== "createdAt" &&
+    property.type !== "lastEditedAt" &&
+    property.type !== "lastEditedBy";
 
   return (
     <Stack gap={0} p={4}>
@@ -552,7 +574,7 @@ function MainPanel({
           </Text>
         </Group>
       )}
-      {!isSystem && !isPending && !property.isPrimary && (
+      {!isPending && (!isSystem || isAutoNumber) && (
         <UnstyledButton
           className={cellClasses.menuItem}
           onClick={onChangeType}
@@ -574,7 +596,24 @@ function MainPanel({
           onClick={onOptions}
         />
       )}
-      {!property.isPrimary && !isPending && (
+      {canBeTitle && (
+        <MenuItem
+          icon={
+            property.isPrimary ? (
+              <IconStarOff size={14} />
+            ) : (
+              <IconStar size={14} />
+            )
+          }
+          label={
+            property.isPrimary
+              ? t("Remove as title property")
+              : t("Set as title property")
+          }
+          onClick={onTogglePrimary}
+        />
+      )}
+      {!isPending && (
         <>
           <Divider my={4} />
           <MenuItem

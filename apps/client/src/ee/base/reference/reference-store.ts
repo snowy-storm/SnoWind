@@ -35,6 +35,20 @@ export function useHydrateUsers(pageId: string): (users: UserRef[]) => void {
   );
 }
 
+// Same for pages: keep the just-picked page visible after the picker closes.
+export function useHydratePages(pageId: string): (pages: ResolvedPage[]) => void {
+  const setStore = useSetAtom(referenceStoreAtomFamily(pageId));
+  return useCallback(
+    (pages: ResolvedPage[]) => {
+      if (pages.length === 0) return;
+      const map: Record<string, ResolvedPage> = {};
+      for (const p of pages) map[p.id] = p;
+      setStore((prev) => mergeReferences(prev, { users: {}, pages: map }));
+    },
+    [setStore],
+  );
+}
+
 // Hydrates the signed-in user so lastEditedBy cells resolve without a refetch.
 export function useHydrateCurrentUser(pageId: string): void {
   const { data: currentUser } = useCurrentUser();

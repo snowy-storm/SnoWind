@@ -100,6 +100,12 @@ export class ExportBaseDto {
   filter?: any;
 }
 
+export class ExpandPagesDto {
+  @IsArray()
+  @IsString({ each: true })
+  pageIds: string[];
+}
+
 // --- Properties ---
 
 export class CreatePropertyDto {
@@ -144,6 +150,10 @@ export class UpdatePropertyDto {
   @IsOptional()
   @IsObject()
   typeOptions?: any;
+
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
 
   @IsOptional()
   @IsString()

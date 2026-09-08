@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { IBaseProperty, IBaseRow } from "@/ee/base/types/base.types";
+import {
+  AutoNumberTypeOptions,
+  IBaseProperty,
+  IBaseRow,
+} from "@/ee/base/types/base.types";
+import { isSystemPropertyType } from "@/ee/base/property-types/property-type.registry";
+import { formatAutoNumberDisplay } from "@/ee/base/formatters/cell-formatters";
 import { timeAgo } from "@/lib/time.ts";
 import classes from "@/ee/base/styles/row-detail-modal.module.css";
 
@@ -13,6 +19,21 @@ type RowDetailTitleProps = {
   onClose: () => void;
 };
 
+function primaryDisplayValue(
+  row: IBaseRow,
+  primaryProperty: IBaseProperty | undefined,
+): string {
+  if (!primaryProperty) return "";
+  const raw = (row.cells ?? {})[primaryProperty.id];
+  if (primaryProperty.type === "autoNumber") {
+    return formatAutoNumberDisplay(
+      raw,
+      primaryProperty.typeOptions as AutoNumberTypeOptions | undefined,
+    );
+  }
+  return typeof raw === "string" ? raw : raw == null ? "" : String(raw);
+}
+
 export function RowDetailTitle({
   row,
   primaryProperty,
@@ -22,12 +43,13 @@ export function RowDetailTitle({
   onClose,
 }: RowDetailTitleProps) {
   const { t } = useTranslation();
-  const initial = primaryProperty
-    ? (((row.cells ?? {})[primaryProperty.id] as string) ?? "")
-    : "";
+  const initial = primaryDisplayValue(row, primaryProperty);
   const [value, setValue] = useState(initial);
+  const titleEditable =
+    canEdit &&
+    !!primaryProperty &&
+    !isSystemPropertyType(primaryProperty.type);
 
-  // Re-sync when the row changes underneath us (navigation or remote edit).
   useEffect(() => {
     setValue(initial);
   }, [initial]);
@@ -36,7 +58,7 @@ export function RowDetailTitle({
 
   return (
     <header className={classes.header}>
-      {canEdit ? (
+      {titleEditable ? (
         <input
           type="text"
           className={classes.titleInput}

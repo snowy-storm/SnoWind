@@ -9,6 +9,9 @@ import { getEmptyDrawingContent } from '../drawing-content';
 import { ContentOperation, UpdatePageDto } from '../dto/update-page.dto';
 import { PageRepo } from '@snowind/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@snowind/db/repos/page/page-permission.repo';
+import { BasePropertyRepo } from '@snowind/db/repos/base/base-property.repo';
+import { BaseRowRepo } from '@snowind/db/repos/base/base-row.repo';
+import { BaseViewRepo } from '@snowind/db/repos/base/base-view.repo';
 import { InsertablePage, Page, User } from '@snowind/db/types/entity.types';
 import { PaginationOptions } from '@snowind/db/pagination/pagination-options';
 import {
@@ -65,6 +68,9 @@ export class PageService {
     private pageRepo: PageRepo,
     private pagePermissionRepo: PagePermissionRepo,
     private attachmentRepo: AttachmentRepo,
+    private basePropertyRepo: BasePropertyRepo,
+    private baseRowRepo: BaseRowRepo,
+    private baseViewRepo: BaseViewRepo,
     @InjectKysely() private readonly db: KyselyDB,
     private readonly storageService: StorageService,
     @InjectQueue(QueueName.ATTACHMENT_QUEUE) private attachmentQueue: Queue,
@@ -814,6 +820,19 @@ export class PageService {
       }
     }
 
+    // Copy base tables (properties / rows / views) for duplicated base pages.
+    try {
+      await this.duplicateBaseDataForPages({
+        pages,
+        pageMap,
+        attachmentMap,
+        spaceId,
+        authUser,
+      });
+    } catch (err) {
+      this.logger.error('Failed to duplicate base table data', err);
+    }
+
     const newPageId = pageMap.get(rootPage.id).newPageId;
     const duplicatedPage = await this.pageRepo.findById(newPageId, {
       includeSpace: true,
@@ -827,6 +846,163 @@ export class PageService {
       hasChildren,
       childPageIds,
     };
+  }
+
+  private async duplicateBaseDataForPages(input: {
+    pages: Array<{ id: string; isBase?: boolean; workspaceId: string }>;
+    pageMap: Map<string, CopyPageMapEntry>;
+    attachmentMap: Map<string, ICopyPageAttachment>;
+    spaceId: string;
+    authUser: User;
+  }) {
+    const { pages, pageMap, attachmentMap, spaceId, authUser } = input;
+    const basePages = pages.filter((p) => p.isBase);
+    if (basePages.length === 0) return;
+
+    for (const source of basePages) {
+      const mapped = pageMap.get(source.id);
+      if (!mapped) continue;
+      const newPageId = mapped.newPageId;
+
+      const properties = await this.basePropertyRepo.findByPageId(source.id);
+      for (const prop of properties) {
+        await this.basePropertyRepo.insertProperty({
+          id: prop.id,
+          pageId: newPageId,
+          name: prop.name,
+          type: prop.type,
+          position: prop.position,
+          typeOptions: prop.typeOptions as any,
+          pendingType: null,
+          pendingTypeOptions: null,
+          pendingToken: null,
+          isPrimary: prop.isPrimary,
+          schemaVersion: prop.schemaVersion ?? 1,
+          workspaceId: source.workspaceId,
+        });
+      }
+
+      const propertyById = new Map(properties.map((p) => [p.id, p]));
+      const rows = await this.baseRowRepo.findByPageId(source.id);
+      const fileAttachmentIds: string[] = [];
+      for (const row of rows) {
+        const cells = (row.cells as Record<string, unknown>) ?? {};
+        for (const [propId, value] of Object.entries(cells)) {
+          const prop = propertyById.get(propId);
+          if (prop?.type !== 'file' || !Array.isArray(value)) continue;
+          for (const file of value) {
+            if (
+              file &&
+              typeof file === 'object' &&
+              typeof (file as { id?: unknown }).id === 'string'
+            ) {
+              fileAttachmentIds.push((file as { id: string }).id);
+            }
+          }
+        }
+      }
+
+      // Copy file-cell attachments that were not already remapped from doc content.
+      const uniqueFileIds = Array.from(new Set(fileAttachmentIds)).filter(
+        (id) => !attachmentMap.has(id),
+      );
+      if (uniqueFileIds.length > 0) {
+        const fileAttachments = await this.db
+          .selectFrom('attachments')
+          .selectAll()
+          .where('id', 'in', uniqueFileIds)
+          .where('workspaceId', '=', source.workspaceId)
+          .execute();
+
+        for (const attachment of fileAttachments) {
+          if (attachment.pageId !== source.id) continue;
+          const newAttachmentId = uuid7();
+          attachmentMap.set(attachment.id, {
+            newPageId,
+            oldPageId: source.id,
+            oldAttachmentId: attachment.id,
+            newAttachmentId,
+          });
+          const newPathFile = attachment.filePath.replace(
+            attachment.id,
+            newAttachmentId,
+          );
+          try {
+            await this.storageService.copy(attachment.filePath, newPathFile);
+            await this.db
+              .insertInto('attachments')
+              .values({
+                id: newAttachmentId,
+                type: attachment.type,
+                filePath: newPathFile,
+                fileName: attachment.fileName,
+                fileSize: attachment.fileSize,
+                mimeType: attachment.mimeType,
+                fileExt: attachment.fileExt,
+                creatorId: authUser.id,
+                workspaceId: attachment.workspaceId,
+                pageId: newPageId,
+                spaceId,
+              })
+              .execute();
+          } catch (err) {
+            this.logger.error(
+              `Duplicate base: failed to copy file attachment ${attachment.id}`,
+              err,
+            );
+          }
+        }
+      }
+
+      const remappedRows = rows.map((row) => {
+        const cells = { ...((row.cells as Record<string, unknown>) ?? {}) };
+        for (const [propId, value] of Object.entries(cells)) {
+          const prop = propertyById.get(propId);
+          if (!prop) continue;
+          if (prop.type === 'page' && typeof value === 'string') {
+            const mappedPage = pageMap.get(value);
+            if (mappedPage) cells[propId] = mappedPage.newPageId;
+          } else if (prop.type === 'file' && Array.isArray(value)) {
+            cells[propId] = value.map((file) => {
+              if (!file || typeof file !== 'object') return file;
+              const id = (file as { id?: unknown }).id;
+              if (typeof id !== 'string') return file;
+              const mappedAtt = attachmentMap.get(id);
+              if (!mappedAtt) return file;
+              return {
+                ...file,
+                id: mappedAtt.newAttachmentId,
+                url: undefined,
+              };
+            });
+          }
+        }
+        return {
+          pageId: newPageId,
+          workspaceId: source.workspaceId,
+          creatorId: authUser.id,
+          lastUpdatedById: authUser.id,
+          position: row.position,
+          cells: cells as any,
+        };
+      });
+      await this.baseRowRepo.insertRows(remappedRows);
+
+      const views = await this.baseViewRepo.findByPageId(source.id);
+      for (const view of views) {
+        await this.baseViewRepo.insertView({
+          pageId: newPageId,
+          workspaceId: source.workspaceId,
+          creatorId: authUser.id,
+          name: view.name,
+          type: view.type,
+          position: view.position,
+          config: view.config as any,
+          isDefault: view.isDefault,
+          isPrivate: view.isPrivate,
+        });
+      }
+    }
   }
 
   async movePage(dto: MovePageDto, movedPage: Page) {

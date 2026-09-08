@@ -33,6 +33,10 @@ import {
   cellValueEqual,
   convertPropertyColumn,
 } from './utils/property-type-conversion';
+import {
+  collectReferenceIds,
+  formatCellForExport,
+} from './utils/cell-display';
 import { BaseWsService } from './realtime/base-ws.service';
 import {
   isTableImportFile,
@@ -257,7 +261,7 @@ export class BaseService {
         name: 'Name',
         type: 'text',
         position: this.genPosition(),
-        isPrimary: true,
+        isPrimary: false,
         typeOptions: { richText: false, defaultValue: '' },
         pendingType: null,
         pendingTypeOptions: null,
@@ -458,24 +462,112 @@ export class BaseService {
       return a.position < b.position ? -1 : a.position > b.position ? 1 : 0;
     });
     const rows = await this.baseRowRepo.findByPageId(pageId, { filter });
+    const refs = await this.resolveRowReferences(properties, rows, workspaceId);
 
     const header = properties.map((p) => p.name);
     const body = rows.map((r) =>
-      properties.map((p) => {
-        const cell = (r.cells as Record<string, unknown>)?.[p.id];
-        if (cell === null || cell === undefined) return '';
-        if (typeof cell === 'string' || typeof cell === 'number' || typeof cell === 'boolean') {
-          return cell.toString();
-        }
-        try {
-          return JSON.stringify(cell);
-        } catch {
-          return '';
-        }
-      }),
+      properties.map((p) =>
+        formatCellForExport(
+          p,
+          (r.cells as Record<string, unknown>)?.[p.id],
+          refs,
+          r,
+        ),
+      ),
     );
 
     return csvStringify([header, ...body]);
+  }
+
+  async expandPages(pageIds: string[], workspaceId: string) {
+    const ids = Array.from(
+      new Set(
+        (pageIds ?? []).filter(
+          (id): id is string => typeof id === 'string' && id.length > 0,
+        ),
+      ),
+    );
+    if (ids.length === 0) return { items: [] };
+
+    const pages = await this.db
+      .selectFrom('pages')
+      .select(['id', 'slugId', 'title', 'icon', 'spaceId'])
+      .select((eb) => this.pageRepo.withSpace(eb))
+      .where('id', 'in', ids)
+      .where('workspaceId', '=', workspaceId)
+      .where('deletedAt', 'is', null)
+      .execute();
+
+    return {
+      items: pages.map((p) => ({
+        id: p.id,
+        slugId: p.slugId,
+        title: p.title,
+        icon: p.icon,
+        spaceId: p.spaceId,
+        space: p.space ?? null,
+      })),
+    };
+  }
+
+  private async resolveRowReferences(
+    properties: BaseProperty[],
+    rows: BaseRow[],
+    workspaceId: string,
+  ) {
+    const { userIds, pageIds } = collectReferenceIds(properties, rows);
+    const users: Record<string, { id: string; name: string | null; avatarUrl: string | null }> = {};
+    const pages: Record<
+      string,
+      {
+        id: string;
+        slugId: string;
+        title: string | null;
+        icon: string | null;
+        spaceId: string;
+        space: { id: string; slug: string; name: string } | null;
+      }
+    > = {};
+
+    if (userIds.length > 0) {
+      const found = await this.db
+        .selectFrom('users')
+        .select(['id', 'name', 'avatarUrl'])
+        .where('id', 'in', userIds)
+        .where('workspaceId', '=', workspaceId)
+        .where('deletedAt', 'is', null)
+        .execute();
+      for (const u of found) {
+        users[u.id] = {
+          id: u.id,
+          name: u.name ?? null,
+          avatarUrl: u.avatarUrl ?? null,
+        };
+      }
+    }
+
+    if (pageIds.length > 0) {
+      const found = await this.db
+        .selectFrom('pages')
+        .select(['id', 'slugId', 'title', 'icon', 'spaceId'])
+        .select((eb) => this.pageRepo.withSpace(eb))
+        .where('id', 'in', pageIds)
+        .where('workspaceId', '=', workspaceId)
+        .where('deletedAt', 'is', null)
+        .execute();
+      for (const p of found) {
+        pages[p.id] = {
+          id: p.id,
+          slugId: p.slugId,
+          title: p.title,
+          icon: p.icon,
+          spaceId: p.spaceId,
+          space: p.space ?? null,
+        };
+      }
+    }
+
+    return { users, pages };
   }
 
   // --- Properties ---
@@ -495,19 +587,36 @@ export class BaseService {
     const existing = await this.basePropertyRepo.findByPageId(input.pageId);
     const lastPos = existing[existing.length - 1]?.position;
 
+    const type = input.type;
+    let typeOptions = input.typeOptions ?? {};
+    if (type === 'autoNumber') {
+      typeOptions = normalizeAutoNumberOptions(typeOptions);
+    }
+
     const prop = await this.basePropertyRepo.insertProperty({
       id: this.genPropertyId(),
       pageId: input.pageId,
       name: input.name?.trim() ?? 'New property',
-      type: input.type,
+      type,
       position: this.genPosition(lastPos),
-      typeOptions: input.typeOptions ?? {},
+      typeOptions,
       pendingType: null,
       pendingTypeOptions: null,
       pendingToken: null,
       workspaceId,
       isPrimary: false,
     });
+
+    if (type === 'autoNumber') {
+      await this.backfillAutoNumberProperty(prop, workspaceId, userId);
+      const refreshed = await this.basePropertyRepo.findById(
+        prop.id,
+        input.pageId,
+      );
+      if (refreshed) {
+        Object.assign(prop, refreshed);
+      }
+    }
 
     const schemaVersion = await this.markPageAsBase(input.pageId, true);
     this.broadcast(input.pageId, 'base:property:created', {
@@ -525,6 +634,7 @@ export class BaseService {
       name?: string;
       type?: string;
       typeOptions?: any;
+      isPrimary?: boolean;
       requestId?: string;
     },
     workspaceId: string,
@@ -539,36 +649,63 @@ export class BaseService {
     const nextType = input.type ?? existing.type;
     const typeChanging = input.type !== undefined && input.type !== existing.type;
 
+    if (typeChanging && (nextType === 'autoNumber' || existing.type === 'autoNumber')) {
+      // autoNumber conversion handled below with allocation semantics
+    }
+
     const { prop, schemaVersion } = await executeTx(
       this.db,
       async (trx) => {
       let typeOptions = input.typeOptions;
 
       if (typeChanging) {
-        const rows = await this.baseRowRepo.findByPageId(input.pageId, { trx });
-        const converted = convertPropertyColumn({
-          fromType: existing.type,
-          toType: nextType,
-          fromTypeOptions: existing.typeOptions,
-          toTypeOptions: input.typeOptions ?? {},
-          cells: rows.map(
-            (row) => (row.cells as Record<string, unknown>)?.[input.propertyId],
-          ),
-          generateChoiceId: generateBaseChoiceId,
-        });
-        typeOptions = converted.typeOptions;
+        if (nextType === 'autoNumber') {
+          typeOptions = normalizeAutoNumberOptions(input.typeOptions ?? {});
+        } else {
+          const rows = await this.baseRowRepo.findByPageId(input.pageId, { trx });
+          const converted = convertPropertyColumn({
+            fromType: existing.type,
+            toType: nextType,
+            fromTypeOptions: existing.typeOptions,
+            toTypeOptions: input.typeOptions ?? {},
+            cells: rows.map(
+              (row) => (row.cells as Record<string, unknown>)?.[input.propertyId],
+            ),
+            generateChoiceId: generateBaseChoiceId,
+          });
+          typeOptions = converted.typeOptions;
 
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          const prev = (row.cells as Record<string, unknown>)?.[input.propertyId];
-          const next = converted.cells[i] ?? null;
-          if (cellValueEqual(prev, next)) continue;
-          await this.baseRowRepo.updateRowCellsMerge(
-            row.id,
-            { [input.propertyId]: next },
-            undefined,
-            { trx },
-          );
+          for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const prev = (row.cells as Record<string, unknown>)?.[input.propertyId];
+            const next = converted.cells[i] ?? null;
+            if (cellValueEqual(prev, next)) continue;
+            await this.baseRowRepo.updateRowCellsMerge(
+              row.id,
+              { [input.propertyId]: next },
+              undefined,
+              { trx },
+            );
+          }
+        }
+      } else if (input.typeOptions !== undefined && nextType === 'autoNumber') {
+        typeOptions = normalizeAutoNumberOptions({
+          ...(asRecord(existing.typeOptions) as any),
+          ...input.typeOptions,
+        });
+      }
+
+      if (input.isPrimary === true) {
+        const all = await this.basePropertyRepo.findByPageId(input.pageId, { trx });
+        for (const p of all) {
+          if (p.isPrimary && p.id !== input.propertyId) {
+            await this.basePropertyRepo.updateProperty(
+              p.id,
+              input.pageId,
+              { isPrimary: false },
+              { trx },
+            );
+          }
         }
       }
 
@@ -578,6 +715,9 @@ export class BaseService {
       if (typeChanging || input.typeOptions !== undefined) {
         updates.typeOptions = typeOptions;
       }
+      if (input.isPrimary !== undefined) {
+        updates.isPrimary = input.isPrimary;
+      }
 
       const updated = await this.basePropertyRepo.updateProperty(
         input.propertyId,
@@ -586,6 +726,17 @@ export class BaseService {
         { trx },
       );
       if (!updated) throw new NotFoundException('Property not found');
+
+      if (typeChanging && nextType === 'autoNumber') {
+        await this.backfillAutoNumberProperty(
+          updated,
+          workspaceId,
+          undefined,
+          trx,
+          true,
+        );
+      }
+
       const schemaVersion = await this.markPageAsBase(input.pageId, true, trx);
       return { prop: updated, schemaVersion };
     });
@@ -662,16 +813,35 @@ export class BaseService {
       if (input.afterRowId) {
         const after = await this.baseRowRepo.findById(input.afterRowId);
         afterPos = after?.position;
+      } else {
+        // Bottom "Add row" has no afterRowId — append after the current last row
+        // so the new row appears where the user clicked, not at the table top.
+        const last = await this.baseRowRepo.findLastByPageId(input.pageId);
+        afterPos = last?.position;
       }
       position = this.genPosition(afterPos);
     }
-    const row = await this.baseRowRepo.insertRow({
-      pageId: input.pageId,
-      workspaceId,
-      creatorId: userId,
-      lastUpdatedById: userId,
-      position,
-      cells: (input.cells as any) ?? {},
+
+    const cells: Record<string, unknown> = { ...(input.cells ?? {}) };
+    const properties = await this.basePropertyRepo.findByPageId(input.pageId);
+    const autoNumberProps = properties.filter((p) => p.type === 'autoNumber');
+
+    const row = await executeTx(this.db, async (trx) => {
+      for (const prop of autoNumberProps) {
+        if (cells[prop.id] != null && cells[prop.id] !== '') continue;
+        cells[prop.id] = await this.allocateAutoNumber(prop, { trx });
+      }
+      return this.baseRowRepo.insertRow(
+        {
+          pageId: input.pageId,
+          workspaceId,
+          creatorId: userId,
+          lastUpdatedById: userId,
+          position,
+          cells: cells as any,
+        },
+        { trx },
+      );
     });
     this.broadcast(input.pageId, 'base:row:created', {
       row,
@@ -706,10 +876,31 @@ export class BaseService {
       throw new NotFoundException('Row not found');
     }
 
-    if (input.cells) {
+    let cells = input.cells;
+    if (cells) {
+      const properties = await this.basePropertyRepo.findByPageId(input.pageId);
+      const locked = new Set(
+        properties
+          .filter(
+            (p) =>
+              p.type === 'autoNumber' ||
+              p.type === 'createdAt' ||
+              p.type === 'lastEditedAt' ||
+              p.type === 'lastEditedBy' ||
+              p.type === 'formula',
+          )
+          .map((p) => p.id),
+      );
+      if (locked.size > 0) {
+        cells = { ...cells };
+        for (const id of locked) delete cells[id];
+      }
+    }
+
+    if (cells && Object.keys(cells).length > 0) {
       row = await this.baseRowRepo.updateRowCellsMerge(
         input.rowId,
-        input.cells,
+        cells,
         userId,
       );
     }
@@ -723,7 +914,7 @@ export class BaseService {
       this.broadcast(input.pageId, 'base:row:updated', {
         row,
         rowId: row.id,
-        updatedCells: input.cells ?? {},
+        updatedCells: cells ?? {},
         requestId: input.requestId,
       });
     }
@@ -764,13 +955,22 @@ export class BaseService {
     },
   ) {
     await this.assertPageWorkspace(pageId, workspaceId);
+    const properties = await this.basePropertyRepo.findByPageId(pageId);
+    const propertyTypeById: Record<string, string> = {};
+    for (const p of properties) propertyTypeById[p.id] = p.type;
     const rowsPage = await this.baseRowRepo.findByPageIdPaginated(
       pageId,
       pagination,
       params?.sorts,
       params?.filter,
+      { propertyTypeById },
     );
-    return { ...rowsPage, references: { users: {}, pages: {} } };
+    const references = await this.resolveRowReferences(
+      properties,
+      rowsPage.items,
+      workspaceId,
+    );
+    return { ...rowsPage, references };
   }
 
   async reorderRow(
@@ -1041,7 +1241,7 @@ export class BaseService {
           name: sheet.headers[i],
           type: 'text',
           position: propPos,
-          isPrimary: i === 0,
+          isPrimary: false,
           typeOptions: { richText: false, defaultValue: '' },
           pendingType: null,
           pendingTypeOptions: null,
@@ -1286,4 +1486,97 @@ export class BaseService {
 
     return query.executeTakeFirst();
   }
+
+  private async allocateAutoNumber(
+    prop: BaseProperty,
+    opts?: { trx?: KyselyTransaction },
+  ): Promise<number> {
+    const db = opts?.trx ?? this.db;
+    // Lock the property row so concurrent inserts cannot share the same next value.
+    await sql`
+      SELECT id FROM base_properties
+      WHERE page_id = ${prop.pageId} AND id = ${prop.id} AND deleted_at IS NULL
+      FOR UPDATE
+    `.execute(db);
+
+    const fresh = await this.basePropertyRepo.findById(prop.id, prop.pageId, {
+      trx: opts?.trx,
+    });
+    if (!fresh) throw new NotFoundException('Property not found');
+    const options = normalizeAutoNumberOptions(fresh.typeOptions);
+    const current = options.next;
+    await this.basePropertyRepo.updateProperty(
+      prop.id,
+      prop.pageId,
+      { typeOptions: { ...options, next: current + 1 } },
+      { trx: opts?.trx },
+    );
+    // Store the integer; UI/export always concatenates current prefix + padded number.
+    return current;
+  }
+
+  private async backfillAutoNumberProperty(
+    prop: BaseProperty,
+    _workspaceId: string,
+    userId?: string,
+    trx?: KyselyTransaction,
+    overwrite = false,
+  ) {
+    const options = normalizeAutoNumberOptions(prop.typeOptions);
+    const rows = await this.baseRowRepo.findByPageId(prop.pageId, { trx });
+    let next = options.next;
+    for (const row of rows) {
+      const cells = (row.cells as Record<string, unknown>) ?? {};
+      const existing = cells[prop.id];
+      if (!overwrite && existing != null && existing !== '') continue;
+      await this.baseRowRepo.updateRowCellsMerge(
+        row.id,
+        { [prop.id]: next },
+        userId,
+        { trx },
+      );
+      next += 1;
+    }
+    if (next !== options.next) {
+      await this.basePropertyRepo.updateProperty(
+        prop.id,
+        prop.pageId,
+        { typeOptions: { ...options, next } },
+        { trx },
+      );
+    }
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+function normalizeAutoNumberOptions(raw: unknown): {
+  prefix: string;
+  digits: number;
+  start: number;
+  next: number;
+} {
+  const opts = asRecord(raw);
+  const prefix = typeof opts.prefix === 'string' ? opts.prefix : '';
+  let digits =
+    typeof opts.digits === 'number' && Number.isFinite(opts.digits)
+      ? Math.floor(opts.digits)
+      : 4;
+  digits = Math.min(12, Math.max(1, digits));
+  let start =
+    typeof opts.start === 'number' && Number.isFinite(opts.start)
+      ? Math.floor(opts.start)
+      : 1;
+  if (start < 0) start = 0;
+  let next =
+    typeof opts.next === 'number' && Number.isFinite(opts.next)
+      ? Math.floor(opts.next)
+      : start;
+  if (next < start) next = start;
+  return { prefix, digits, start, next };
 }

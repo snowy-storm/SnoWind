@@ -1,5 +1,6 @@
 import {
   ONLYOFFICE_FILE_EXTS,
+  ONLYOFFICE_STATUS,
   OnlyOfficeDocumentType,
   OnlyOfficeFileExt,
 } from './onlyoffice.constants';
@@ -80,4 +81,21 @@ export function isOfficeExt(ext: string): ext is OnlyOfficeFileExt {
   return (ONLYOFFICE_FILE_EXTS as readonly string[]).includes(
     normalizeFileExt(ext),
   );
+}
+
+export function isPersistableSaveStatus(status: unknown): boolean {
+  const n = Number(status);
+  return (
+    n === ONLYOFFICE_STATUS.READY_TO_SAVE || n === ONLYOFFICE_STATUS.FORCE_SAVE
+  );
+}
+
+export function resolveOfficeEditorAccess(opts: {
+  canEditPage: boolean;
+  mode?: 'view' | 'edit';
+}): { editorCanEdit: boolean; canSave: boolean } {
+  return {
+    canSave: opts.canEditPage,
+    editorCanEdit: opts.mode === 'view' ? false : opts.canEditPage,
+  };
 }

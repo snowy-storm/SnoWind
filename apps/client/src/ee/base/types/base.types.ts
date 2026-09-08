@@ -23,7 +23,8 @@ export type BasePropertyType =
   | 'lastEditedAt'
   | 'lastEditedBy'
   | 'formula'
-  | 'longText';
+  | 'longText'
+  | 'autoNumber';
 
 export type BaseViewType = 'table' | 'kanban' | 'calendar';
 
@@ -89,6 +90,13 @@ export type PersonTypeOptions = {
 
 export type PageTypeOptions = Record<string, never>;
 
+export type AutoNumberTypeOptions = {
+  prefix?: string;
+  digits?: number;
+  start?: number;
+  next?: number;
+};
+
 export type TypeOptions =
   | SelectTypeOptions
   | NumberTypeOptions
@@ -99,6 +107,7 @@ export type TypeOptions =
   | EmailTypeOptions
   | PersonTypeOptions
   | PageTypeOptions
+  | AutoNumberTypeOptions
   | Record<string, unknown>;
 
 export type IBaseProperty = {
@@ -304,6 +313,7 @@ export type UpdatePropertyInput = {
   name?: string;
   type?: BasePropertyType;
   typeOptions?: TypeOptions;
+  isPrimary?: boolean;
   requestId?: string;
 };
 

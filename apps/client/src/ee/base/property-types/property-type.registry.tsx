@@ -16,6 +16,7 @@ import {
   IconClockEdit,
   IconUserEdit,
   IconMathFunction,
+  IconNumber,
 } from "@tabler/icons-react";
 import type {
   BasePropertyType,
@@ -38,6 +39,7 @@ import { CellCreatedAt } from "@/ee/base/components/cells/cell-created-at";
 import { CellLastEditedAt } from "@/ee/base/components/cells/cell-last-edited-at";
 import { CellLastEditedBy } from "@/ee/base/components/cells/cell-last-edited-by";
 import { CellFormula } from "@/ee/base/components/cells/cell-formula";
+import { CellAutoNumber } from "@/ee/base/components/cells/cell-auto-number";
 import { defaultStatusChoices } from "@/ee/base/components/property/choice-editor";
 import type { ClientPropertyTypeDescriptor } from "./property-type.descriptor";
 
@@ -154,6 +156,22 @@ export const PROPERTY_TYPE_REGISTRY: Record<
     isSystem: true,
     hasOptions: false,
   },
+  autoNumber: {
+    type: "autoNumber",
+    cellComponent: CellAutoNumber,
+    icon: IconNumber,
+    labelKey: "Custom sequence",
+    filterOperators: ["eq", "neq", "contains", "ncontains", "isEmpty", "isNotEmpty"],
+    filterInput: "text",
+    isSystem: true,
+    hasOptions: true,
+    defaultTypeOptions: () => ({
+      prefix: "",
+      digits: 4,
+      start: 1,
+      next: 1,
+    }),
+  },
   page: {
     type: "page",
     cellComponent: CellPage,
@@ -243,14 +261,14 @@ export function isSystemPropertyType(type: string): boolean {
 
 /** User-writable fields shown in kanban create/edit forms. */
 export function isFillablePropertyType(type: string): boolean {
-  return !isSystemPropertyType(type) && type !== "formula";
+  return !isSystemPropertyType(type) && type !== "formula" && type !== "autoNumber";
 }
 
 export const DEFAULT_FILTER_OPERATORS = ["eq", "neq", "isEmpty", "isNotEmpty"];
 
 export const PROPERTY_PICKER_ORDER: BasePropertyType[] = [
   "text", "longText", "number", "select", "status", "multiSelect", "date",
-  "person", "file", "formula", "page", "checkbox", "url", "email",
+  "person", "file", "formula", "autoNumber", "page", "checkbox", "url", "email",
   "createdAt", "lastEditedAt", "lastEditedBy",
 ];
 

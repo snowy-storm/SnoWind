@@ -127,6 +127,16 @@ export function PropertyOptions({
           hideButtons={hideButtons}
         />
       );
+    case "autoNumber":
+      return (
+        <AutoNumberOptions
+          property={property}
+          onUpdate={onUpdate}
+          onClose={onClose}
+          onDirtyChange={onDirtyChange}
+          hideButtons={hideButtons}
+        />
+      );
     default:
       return (
         <Text size="xs" c="dimmed">
@@ -614,6 +624,89 @@ function CheckboxOptions({
           update({ defaultValue: e.currentTarget.checked ? true : undefined })
         }
       />
+      {!hideButtons && (
+        <OptionsFooter isDirty={isDirty} onCancel={cancel} onSave={save} />
+      )}
+    </Stack>
+  );
+}
+
+function AutoNumberOptions({
+  property,
+  onUpdate,
+  onClose,
+  onDirtyChange,
+  hideButtons,
+}: OptionEditorProps) {
+  const { t } = useTranslation();
+  // Stabilize initial so typing into Prefix does not reset draft every render.
+  const initialOptions = useMemo(() => {
+    const opts = (property.typeOptions ?? {}) as Record<string, unknown>;
+    return {
+      prefix: typeof opts.prefix === "string" ? opts.prefix : "",
+      digits:
+        typeof opts.digits === "number" && opts.digits > 0 ? opts.digits : 4,
+      start: typeof opts.start === "number" && opts.start >= 0 ? opts.start : 1,
+      next:
+        typeof opts.next === "number" && Number.isFinite(opts.next)
+          ? opts.next
+          : typeof opts.start === "number" && opts.start >= 0
+            ? opts.start
+            : 1,
+    };
+  }, [property.typeOptions]);
+
+  const { draft, update, isDirty, save, cancel } = useEditableTypeOptions(
+    initialOptions,
+    { onUpdate, onClose, onDirtyChange, hideButtons },
+  );
+
+  const prefix = typeof draft.prefix === "string" ? draft.prefix : "";
+  const digits =
+    typeof draft.digits === "number" && draft.digits > 0 ? draft.digits : 4;
+  const start =
+    typeof draft.start === "number" && draft.start >= 0 ? draft.start : 1;
+  const preview = `${prefix}${String(start).padStart(digits, "0")}`;
+
+  return (
+    <Stack gap="xs">
+      <TextInput
+        size="xs"
+        label={t("Prefix")}
+        placeholder="TASK-"
+        value={prefix}
+        onChange={(e) => update({ prefix: e.currentTarget.value })}
+        onKeyDown={(e) => e.stopPropagation()}
+      />
+      <NumberInput
+        size="xs"
+        label={t("Digits")}
+        min={1}
+        max={12}
+        value={digits}
+        onChange={(val) =>
+          update({ digits: typeof val === "number" ? val : 4 })
+        }
+      />
+      <NumberInput
+        size="xs"
+        label={t("Start from")}
+        min={0}
+        value={start}
+        onChange={(val) => {
+          const nextStart = typeof val === "number" ? val : 1;
+          update({
+            start: nextStart,
+            next:
+              typeof draft.next === "number" && draft.next > nextStart
+                ? draft.next
+                : nextStart,
+          });
+        }}
+      />
+      <Text size="xs" c="dimmed">
+        {t("Preview")}: {preview}
+      </Text>
       {!hideButtons && (
         <OptionsFooter isDirty={isDirty} onCancel={cancel} onSave={save} />
       )}

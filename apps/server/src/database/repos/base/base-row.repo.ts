@@ -278,7 +278,11 @@ export class BaseRowRepo {
     pagination: PaginationOptions,
     sorts?: Array<{ propertyId: string; direction: 'asc' | 'desc' }>,
     filter?: unknown,
-    opts?: { trx?: KyselyTransaction },
+    opts?: {
+      trx?: KyselyTransaction;
+      /** propertyId → type; used so autoNumber sorts by numeric sequence */
+      propertyTypeById?: Record<string, string>;
+    },
   ) {
     const db = dbOrTx(this.db, opts?.trx);
     let query: any = db
@@ -295,10 +299,31 @@ export class BaseRowRepo {
     if (sorts && sorts.length > 0) {
       for (const sort of sorts) {
         const { propertyId, direction } = sort;
-        query = query.orderBy(
-          sql`base_cell_text(cells, ${propertyId})`,
-          direction,
-        );
+        const propType = opts?.propertyTypeById?.[propertyId];
+        if (propType === 'autoNumber' || propType === 'number') {
+          // Sort by numeric value. autoNumber may be a jsonb number or a
+          // legacy "PREFIX0001" string — take the trailing digits.
+          query = query.orderBy(
+            sql`(
+              CASE jsonb_typeof(cells->${sql.lit(propertyId)})
+                WHEN 'number' THEN (cells->>${sql.lit(propertyId)})::numeric
+                WHEN 'string' THEN
+                  CASE
+                    WHEN (cells->>${sql.lit(propertyId)}) ~ '[0-9]+$'
+                    THEN (substring((cells->>${sql.lit(propertyId)}) from '([0-9]+)$'))::numeric
+                    ELSE NULL
+                  END
+                ELSE NULL
+              END
+            )`,
+            direction,
+          );
+        } else {
+          query = query.orderBy(
+            sql`base_cell_text(cells, ${sql.lit(propertyId)})`,
+            direction,
+          );
+        }
       }
     }
 
@@ -353,6 +378,22 @@ export class BaseRowRepo {
     }
 
     return query.execute();
+  }
+
+  async findLastByPageId(
+    pageId: string,
+    opts?: { trx?: KyselyTransaction },
+  ): Promise<BaseRow | undefined> {
+    const db = dbOrTx(this.db, opts?.trx);
+    return db
+      .selectFrom('baseRows')
+      .select(this.baseFields)
+      .where('pageId', '=', pageId)
+      .where('deletedAt', 'is', null)
+      .orderBy(sql`position COLLATE "C"`, 'desc')
+      .orderBy('id', 'desc')
+      .limit(1)
+      .executeTakeFirst();
   }
 
   async insertRow(
