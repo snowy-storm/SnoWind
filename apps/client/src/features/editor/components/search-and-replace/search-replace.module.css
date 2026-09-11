@@ -8,3 +8,7 @@
   justify-content: right;
   padding-right: 8px;
 }
+
+.globalResult:hover {
+  background: var(--mantine-color-default-hover);
+}

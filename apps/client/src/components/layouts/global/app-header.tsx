@@ -28,10 +28,8 @@ import {
   SearchControl,
   SearchMobileControl,
 } from "@/features/search/components/search-control.tsx";
-import {
-  searchSpotlight,
-  shareSearchSpotlight,
-} from "@/features/search/constants.ts";
+import { openSearchSpotlight } from "@/features/search/open-search-spotlight";
+import { shareSearchSpotlight } from "@/features/search/constants.ts";
 import { NotificationPopover } from "@/features/notification/components/notification-popover.tsx";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
 import { SnoWindLogo } from "@/components/icons/snowind-logo.tsx";
@@ -106,10 +104,10 @@ export function AppHeader() {
 
         <div>
           <Group visibleFrom="sm">
-            <SearchControl onClick={searchSpotlight.open} />
+            <SearchControl onClick={() => openSearchSpotlight("global")} />
           </Group>
           <Group hiddenFrom="sm">
-            <SearchMobileControl onSearch={searchSpotlight.open} />
+            <SearchMobileControl onSearch={() => openSearchSpotlight("global")} />
           </Group>
         </div>
 

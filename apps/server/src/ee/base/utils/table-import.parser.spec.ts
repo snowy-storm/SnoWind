@@ -1,5 +1,7 @@
 import * as XLSX from 'xlsx';
 import {
+  aoaToXlsxBuffer,
+  convertCsvBufferToXlsx,
   gridToParsedSheet,
   listSheetNames,
   parseTableFile,
@@ -129,6 +131,24 @@ describe('parseTableFile', () => {
       ['Ada', '36'],
       ['Lin', '21'],
     ]);
+  });
+
+  it('converts csv buffer to xlsx that round-trips', () => {
+    const csv = Buffer.from('Name,Age\nAda,36\n');
+    const xlsx = convertCsvBufferToXlsx(csv);
+    const parsed = parseTableFile(xlsx, 'people.xlsx');
+    expect(parsed.sheets[0].headers).toEqual(['Name', 'Age']);
+    expect(parsed.sheets[0].rows).toEqual([['Ada', '36']]);
+  });
+
+  it('writes aoa to xlsx', () => {
+    const xlsx = aoaToXlsxBuffer([
+      ['A', 'B'],
+      ['1', '2'],
+    ]);
+    const parsed = parseTableFile(xlsx, 'grid.xlsx');
+    expect(parsed.sheets[0].headers).toEqual(['A', 'B']);
+    expect(parsed.sheets[0].rows).toEqual([['1', '2']]);
   });
 
   it('imports every data row beyond the first 100', () => {

@@ -58,9 +58,9 @@ export async function convertPageToBase(
   return req.data;
 }
 
-export async function exportBaseToCsv(pageId: string, filter?: unknown): Promise<void> {
+export async function exportBaseToXlsx(pageId: string, filter?: unknown): Promise<void> {
   const req = await api.post(
-    "/bases/export-csv",
+    "/bases/export-xlsx",
     { pageId, filter },
     { responseType: "blob" },
   );
@@ -68,7 +68,7 @@ export async function exportBaseToCsv(pageId: string, filter?: unknown): Promise
   const header = (req?.headers?.["content-disposition"] as string) ?? "";
   const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
   const plainMatch = header.match(/filename="?([^";]+)"?/i);
-  let fileName = utf8Match?.[1] ?? plainMatch?.[1] ?? "base.csv";
+  let fileName = utf8Match?.[1] ?? plainMatch?.[1] ?? "base.xlsx";
   try {
     fileName = decodeURIComponent(fileName);
   } catch {

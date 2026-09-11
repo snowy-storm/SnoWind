@@ -288,28 +288,31 @@ export class BasesController {
   }
 
   @HttpCode(HttpStatus.OK)
-  @Post('export-csv')
-  async exportBaseToCsv(
+  @Post('export-xlsx')
+  async exportBaseToXlsx(
     @Body() dto: ExportBaseDto,
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
     @Res() res: FastifyReply,
   ) {
     await this.assertCanEditSpaceByPage(dto.pageId, user);
-    const csv = await this.baseService.exportBaseToCsv(
+    const xlsx = await this.baseService.exportBaseToXlsx(
       dto.pageId,
       workspace.id,
       dto.filter,
     );
     const page = await this.pageRepo.findById(dto.pageId);
-    const filename = `${sanitizeFileName(page?.title || 'base', { preserveSpaces: true }) || 'base'}.csv`;
+    const filename = `${sanitizeFileName(page?.title || 'base', { preserveSpaces: true }) || 'base'}.xlsx`;
     const encoded = encodeURIComponent(filename);
     res.header(
       'Content-Disposition',
       `attachment; filename="${encoded}"; filename*=UTF-8''${encoded}`,
     );
-    res.header('Content-Type', 'text/csv; charset=utf-8');
-    return res.send('\uFEFF' + csv);
+    res.header(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    return res.send(xlsx);
   }
 
   @HttpCode(HttpStatus.OK)

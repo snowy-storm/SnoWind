@@ -21,7 +21,7 @@ import {
   FilterCondition,
   FilterGroup,
 } from "@/ee/base/types/base.types";
-import { exportBaseToCsv } from "@/ee/base/services/base-service";
+import { exportBaseToXlsx } from "@/ee/base/services/base-service";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { ViewTabs } from "@/ee/base/components/views/view-tabs";
 import { ViewSortConfigPopover } from "@/ee/base/components/views/view-sort-config";
@@ -83,11 +83,11 @@ export function BaseToolbar({
     if (exporting) return;
     setExporting(true);
     try {
-      await exportBaseToCsv(base.id, activeView?.config?.filter);
+      await exportBaseToXlsx(base.id, activeView?.config?.filter);
     } catch (err) {
       notifications.show({
         color: "red",
-        message: getApiErrorMessage(err, t("Failed to export CSV")),
+        message: getApiErrorMessage(err, t("Failed to export Excel")),
       });
     } finally {
       setExporting(false);
@@ -161,7 +161,7 @@ export function BaseToolbar({
           <ViewRowHeightPicker view={activeView} pageId={base.id} />
         )}
 
-        <Tooltip label={t("Export CSV")}>
+        <Tooltip label={t("Export Excel")}>
           <ActionIcon
             variant="subtle"
             size="sm"

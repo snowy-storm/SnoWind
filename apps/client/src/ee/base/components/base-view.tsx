@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Text, Stack } from "@mantine/core";
-import { useAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import { IconTable } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { notifications } from "@mantine/notifications";
@@ -53,6 +53,11 @@ import {
   isBaseViewVisibleToUser,
   sortBaseViews,
 } from "@/ee/base/utils/view-access";
+import { baseQuickSearchAtom } from "@/features/page-find/atoms/page-find-atom";
+import {
+  buildQuickSearchFilter,
+  mergeViewFilterWithQuickSearch,
+} from "@/features/page-find/utils/build-quick-search-filter";
 import classes from "@/ee/base/styles/grid.module.css";
 import viewClasses from "@/ee/base/styles/base-view.module.css";
 import kanbanClasses from "@/ee/base/styles/kanban.module.css";
@@ -145,6 +150,8 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
     baselineGroups: activeView?.config?.groups,
   });
 
+  const quickSearchQuery = useAtomValue(baseQuickSearchAtom);
+
   // Baseline merged with local draft. Used for table state and toolbar badge counts.
   // The real activeView remains the auto-persist baseline so drafts can't leak into layout writes.
   const effectiveView = useMemo(
@@ -163,7 +170,13 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
     [activeView, effectiveFilter, effectiveSorts, effectiveGroups],
   );
 
-  const activeFilter = effectiveFilter;
+  const activeFilter = useMemo(() => {
+    const quick = buildQuickSearchFilter(
+      base?.properties ?? [],
+      quickSearchQuery,
+    );
+    return mergeViewFilterWithQuickSearch(effectiveFilter, quick);
+  }, [base?.properties, quickSearchQuery, effectiveFilter]);
   const activeSorts = effectiveSorts;
 
   const viewEditable = canEditBaseView(activeView, currentUserId, editable);

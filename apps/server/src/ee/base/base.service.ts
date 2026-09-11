@@ -27,7 +27,6 @@ import {
 } from '@snowind/db/types/entity.types';
 import { generateJitteredKeyBetween } from 'fractional-indexing-jittered';
 import { v4 as uuid4 } from 'uuid';
-import { stringify as csvStringify } from 'csv-stringify/sync';
 import { generateBaseChoiceId, generateSlugId } from '../../common/helpers';
 import {
   cellValueEqual,
@@ -37,6 +36,7 @@ import {
   collectReferenceIds,
   formatCellForExport,
 } from './utils/cell-display';
+import { aoaToXlsxBuffer } from './utils/table-import.parser';
 import { BaseWsService } from './realtime/base-ws.service';
 import {
   isTableImportFile,
@@ -453,7 +453,7 @@ export class BaseService {
     };
   }
 
-  async exportBaseToCsv(pageId: string, workspaceId: string, filter?: unknown) {
+  async exportBaseToXlsx(pageId: string, workspaceId: string, filter?: unknown) {
     await this.assertPageWorkspace(pageId, workspaceId);
     const properties = (
       await this.basePropertyRepo.findByPageId(pageId)
@@ -476,7 +476,7 @@ export class BaseService {
       ),
     );
 
-    return csvStringify([header, ...body]);
+    return aoaToXlsxBuffer([header, ...body]);
   }
 
   async expandPages(pageIds: string[], workspaceId: string) {

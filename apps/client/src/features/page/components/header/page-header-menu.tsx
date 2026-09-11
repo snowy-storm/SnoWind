@@ -22,7 +22,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useAsideTriggerProps } from "@/hooks/use-toggle-aside.tsx";
 import { useAtom, useAtomValue } from "jotai";
 import { historyAtoms } from "@/features/page-history/atoms/history-atoms.ts";
-import { useDisclosure, useHotkeys } from "@mantine/hooks";
+import { useDisclosure } from "@mantine/hooks";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { useParams } from "react-router-dom";
 import { usePageQuery } from "@/features/page/queries/page-query.ts";
@@ -74,27 +74,6 @@ export default function PageHeaderMenu({ readOnly }: PageHeaderMenuProps) {
   });
   const isDeleted = !!page?.deletedAt;
   const hideDocChrome = !!page?.isBase || !!page?.drawingType || isFilePage(page);
-
-  useHotkeys(
-    [
-      [
-        "mod+F",
-        () => {
-          const event = new CustomEvent("openFindDialogFromEditor", {});
-          document.dispatchEvent(event);
-        },
-      ],
-      [
-        "Escape",
-        () => {
-          const event = new CustomEvent("closeFindDialogFromEditor", {});
-          document.dispatchEvent(event);
-        },
-        { preventDefault: false },
-      ],
-    ],
-    [],
-  );
 
   if (isDeleted) {
     return null;

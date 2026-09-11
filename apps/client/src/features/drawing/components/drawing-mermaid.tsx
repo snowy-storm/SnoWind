@@ -11,6 +11,12 @@ import {
   DEFAULT_MERMAID_SOURCE,
   getMermaidSource,
 } from "@/features/drawing/drawing-content.ts";
+import {
+  applyTextReplaceAll,
+  applyTextReplaceAt,
+  registerMermaidFindBridge,
+} from "@/features/page-find/mermaid-find-bridge";
+import { findTextMatches } from "@/features/page-find/utils/text-matches";
 
 type DrawingMermaidProps = {
   pageId: string;
@@ -31,10 +37,71 @@ export function DrawingMermaid({
   );
   const [preview, setPreview] = useState("");
   const svgRef = useRef("");
+  const sourceRef = useRef(source);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  sourceRef.current = source;
 
   const persist = useDebouncedCallback((next: string) => {
     persistDrawing("mermaid", {}, next).catch(() => {});
   }, 800);
+
+  const applySource = useCallback(
+    (next: string) => {
+      setSource(next);
+      if (editable) persist(next);
+    },
+    [editable, persist],
+  );
+
+  useEffect(() => {
+    registerMermaidFindBridge({
+      getSource: () => sourceRef.current,
+      selectRange: (start, end) => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.focus();
+        el.setSelectionRange(start, end);
+      },
+      replaceCurrent: (index, needle, replacement, caseSensitive) => {
+        if (!editable) return 0;
+        const { next, nextIndex, count } = applyTextReplaceAt(
+          sourceRef.current,
+          index,
+          needle,
+          replacement,
+          caseSensitive,
+        );
+        if (count === 0) return 0;
+        applySource(next);
+        const matches = findTextMatches(next, needle, caseSensitive);
+        if (matches[nextIndex]) {
+          const match = matches[nextIndex];
+          requestAnimationFrame(() => {
+            const el = textareaRef.current;
+            if (!el) return;
+            el.focus();
+            el.setSelectionRange(match.start, match.end);
+          });
+        }
+        return count;
+      },
+      replaceAll: (needle, replacement, caseSensitive) => {
+        if (!editable) return 0;
+        const { next, count } = applyTextReplaceAll(
+          sourceRef.current,
+          needle,
+          replacement,
+          caseSensitive,
+        );
+        if (count === 0) return 0;
+        applySource(next);
+        return count;
+      },
+    });
+    return () => {
+      registerMermaidFindBridge(null);
+    };
+  }, [applySource, editable]);
 
   useEffect(() => {
     mermaid.initialize({
@@ -102,17 +169,18 @@ export function DrawingMermaid({
         </Button>
       </Group>
       <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-            padding: "0 12px 12px",
-          }}
-          className="drawing-mermaid-split"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+          padding: "0 12px 12px",
+        }}
+        className="drawing-mermaid-split"
       >
         <Textarea
+          ref={textareaRef}
           value={source}
           onChange={(event) => handleChange(event.currentTarget.value)}
           readOnly={!editable}

@@ -38,6 +38,7 @@ import { load } from 'cheerio';
 import { normalizeImportHtml } from '../utils/import-formatter';
 import { AttachmentRepo } from '@snowind/db/repos/attachment/attachment.repo';
 import { getAttachmentFolderPath } from '../../../core/attachment/attachment.utils';
+import { convertCsvBufferToXlsx } from '../../../ee/base/utils/table-import.parser';
 import { AttachmentType } from '../../../core/attachment/attachment.constants';
 import { DocxImportService } from '../../../ee/document-import/docx-import.service';
 
@@ -164,6 +165,18 @@ export class ImportService {
     spaceId: string,
     workspaceId: string,
   ) {
+    let storedBuffer = fileBuffer;
+    let storedExtension = fileExtension;
+    if (fileExtension === '.csv') {
+      try {
+        storedBuffer = convertCsvBufferToXlsx(fileBuffer);
+        storedExtension = '.xlsx';
+      } catch (err) {
+        this.logger.error('Failed to convert imported CSV to xlsx', err);
+        throw new BadRequestException('Failed to convert CSV to Excel');
+      }
+    }
+
     const originalBase = path.basename(originalFileName, fileExtension);
     const title =
       sanitizeFileName(originalBase, { preserveSpaces: true }).trim() ||
@@ -171,11 +184,11 @@ export class ImportService {
       'document';
     const storageBase = pageTitle || 'document';
     const attachmentId = uuid7();
-    const fileNameWithExt = `${storageBase}${fileExtension}`;
+    const fileNameWithExt = `${storageBase}${storedExtension}`;
     const filePath = `${getAttachmentFolderPath(AttachmentType.File, workspaceId)}/${attachmentId}/${fileNameWithExt}`;
-    const isPdf = fileExtension === '.pdf';
-    const isSpreadsheet = ['.xlsx', '.xls', '.csv'].includes(fileExtension);
-    const isSlide = ['.ppt', '.pptx'].includes(fileExtension);
+    const isPdf = storedExtension === '.pdf';
+    const isSpreadsheet = ['.xlsx', '.xls'].includes(storedExtension);
+    const isSlide = ['.ppt', '.pptx'].includes(storedExtension);
     const fileType = isPdf
       ? 'pdf'
       : isSpreadsheet
@@ -191,14 +204,14 @@ export class ImportService {
           src: fileSrc,
           name: fileNameWithExt,
           attachmentId,
-          size: fileBuffer.length,
+          size: storedBuffer.length,
         }
       : {
           url: fileSrc,
           name: fileNameWithExt,
           mime: mimeType,
           attachmentId,
-          size: fileBuffer.length,
+          size: storedBuffer.length,
         };
 
     const prosemirrorJson = {
@@ -222,7 +235,7 @@ export class ImportService {
     }
 
     try {
-      await this.storageService.upload(filePath, fileBuffer);
+      await this.storageService.upload(filePath, storedBuffer);
     } catch (err) {
       this.logger.error(`Failed to store imported ${fileType} file`, err);
       throw new BadRequestException(`Failed to import ${fileType} file`);
@@ -249,9 +262,9 @@ export class ImportService {
         type: AttachmentType.File,
         filePath,
         fileName: fileNameWithExt,
-        fileSize: BigInt(fileBuffer.length),
+        fileSize: BigInt(storedBuffer.length),
         mimeType,
-        fileExt: fileExtension,
+        fileExt: storedExtension,
         creatorId: userId,
         workspaceId,
         pageId,
@@ -259,7 +272,7 @@ export class ImportService {
       });
 
       try {
-        if (['.pdf', '.docx', '.txt'].includes(fileExtension)) {
+        if (['.pdf', '.docx', '.txt'].includes(storedExtension)) {
           await this.attachmentQueue.add(
             QueueJob.ATTACHMENT_INDEX_CONTENT,
             { attachmentId },

@@ -203,6 +203,27 @@ export function listSheetNames(buffer: Buffer, filename: string): string[] {
   return (wb.SheetNames ?? []).filter((n) => typeof n === 'string' && n.length);
 }
 
+/** Parse a CSV buffer and rewrite it as an .xlsx workbook for OnlyOffice preview/edit. */
+export function convertCsvBufferToXlsx(buffer: Buffer): Buffer {
+  const wb = readWorkbook(buffer, 'import.csv');
+  if (!wb.SheetNames?.length) {
+    throw new Error('Failed to parse CSV');
+  }
+  return Buffer.from(
+    XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true }),
+  );
+}
+
+/** Build an .xlsx buffer from a 2D string grid (header + rows). */
+export function aoaToXlsxBuffer(data: string[][], sheetName = 'Sheet1'): Buffer {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName.slice(0, 31) || 'Sheet1');
+  return Buffer.from(
+    XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true }),
+  );
+}
+
 export function parseTableFile(
   buffer: Buffer,
   filename: string,

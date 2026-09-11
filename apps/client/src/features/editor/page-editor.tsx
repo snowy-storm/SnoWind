@@ -65,7 +65,6 @@ import ExcalidrawMenu from "./components/excalidraw/excalidraw-menu-lazy";
 import DrawioMenu from "./components/drawio/drawio-menu";
 import MindmapMenu from "./components/mindmap/mindmap-menu";
 import { useCollabToken } from "@/features/auth/queries/auth-query.tsx";
-import SearchAndReplaceDialog from "@/features/editor/components/search-and-replace/search-and-replace-dialog.tsx";
 import { useDebouncedCallback, useDocumentVisibility } from "@mantine/hooks";
 import { useIdle } from "@/hooks/use-idle.ts";
 import { queryClient } from "@/main.tsx";
@@ -75,7 +74,7 @@ import { extractPageSlugId, platformModifierKey } from "@/lib";
 import { FIVE_MINUTES } from "@/lib/constants.ts";
 import { PageEditMode } from "@/features/user/types/user.types.ts";
 import { jwtDecode } from "jwt-decode";
-import { searchSpotlight } from "@/features/search/constants.ts";
+import { openSearchSpotlight } from "@/features/search/open-search-spotlight";
 import { useEditorScroll } from "./hooks/use-editor-scroll";
 import { EditorAiMenu } from "@/ee/ai/components/editor/ai-menu/ai-menu";
 import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
@@ -282,7 +281,7 @@ function CollabPageEditor({
               return true;
             }
             if (platformModifierKey(event) && event.code === "KeyK") {
-              searchSpotlight.open();
+              openSearchSpotlight("global");
               return true;
             }
             if (["ArrowUp", "ArrowDown", "Enter"].includes(event.key)) {
@@ -457,10 +456,6 @@ function CollabPageEditor({
     <div className="editor-container" style={{ position: "relative" }}>
       <div ref={menuContainerRef}>
         <EditorContent editor={editor} />
-
-        {editor && (
-          <SearchAndReplaceDialog editor={editor} editable={editable} />
-        )}
 
         {editor && editorIsEditable && (
           <div>
