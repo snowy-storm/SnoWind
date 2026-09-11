@@ -8,6 +8,11 @@ import {
   CellCoord,
 } from "@/ee/base/types/base.types";
 import { computeNextCell } from "@/ee/base/utils/grid-cell-nav";
+import {
+  buildCellSelection,
+  singleCellSelection,
+  type CellSelection,
+} from "@/ee/base/utils/cell-selection";
 
 type UseGridKeyboardNavOptions = {
   table: Table<IBaseRow>;
@@ -18,7 +23,9 @@ type UseGridKeyboardNavOptions = {
   editingCell: EditingCell;
   setEditingCell: (cell: EditingCell) => void;
   openEditor: (coord: CellCoord) => void;
-  clearCell: (coord: CellCoord) => void;
+  clearSelectionCells: () => void;
+  copyCell: (coord: CellCoord) => void;
+  pasteCell: (coord: CellCoord) => void | Promise<void>;
   beginTypeToEdit: (coord: CellCoord, char: string) => void;
   scrollCellIntoView: (coord: CellCoord, rowIndex: number) => void;
   selectionCount: number;
@@ -28,6 +35,8 @@ type UseGridKeyboardNavOptions = {
   expandRow: (rowId: string) => void;
   addRow: (afterRowId: string, focusPropertyId: string) => void;
   getOrderedRowIds?: () => string[];
+  cellSelection: CellSelection | null;
+  setCellSelection: (sel: CellSelection | null) => void;
 };
 
 const isPrintableKey = (e: KeyboardEvent) =>
@@ -48,7 +57,9 @@ export function useGridKeyboardNav({
   editingCell,
   setEditingCell,
   openEditor,
-  clearCell,
+  clearSelectionCells,
+  copyCell,
+  pasteCell,
   beginTypeToEdit,
   scrollCellIntoView,
   selectionCount,
@@ -58,6 +69,8 @@ export function useGridKeyboardNav({
   expandRow,
   addRow,
   getOrderedRowIds,
+  cellSelection,
+  setCellSelection,
 }: UseGridKeyboardNavOptions) {
   const getColIds = useCallback(
     () =>
@@ -96,17 +109,52 @@ export function useGridKeyboardNav({
       (document.activeElement as HTMLElement | null)?.blur();
       setEditingCell(next);
       setFocusedCell(next);
+      setCellSelection(singleCellSelection(next, getRowIds()));
       scrollCellIntoView(next, getRowIds().indexOf(next.rowId));
     },
-    [setEditingCell, setFocusedCell, scrollCellIntoView, getRowIds],
+    [
+      setEditingCell,
+      setFocusedCell,
+      setCellSelection,
+      scrollCellIntoView,
+      getRowIds,
+    ],
   );
 
   const goFocused = useCallback(
-    (next: CellCoord) => {
+    (next: CellCoord, opts?: { extend?: boolean }) => {
+      const ordered = getRowIds();
+      if (opts?.extend && focusedCell) {
+        // Column-scoped: only extend vertically within the same property.
+        if (next.propertyId === focusedCell.propertyId) {
+          const anchor =
+            cellSelection && cellSelection.propertyId === focusedCell.propertyId
+              ? cellSelection.anchorRowId
+              : focusedCell.rowId;
+          const nextSel = buildCellSelection(
+            focusedCell.propertyId,
+            anchor,
+            next.rowId,
+            ordered,
+          );
+          if (nextSel) setCellSelection(nextSel);
+          setFocusedCell(next);
+          scrollCellIntoView(next, ordered.indexOf(next.rowId));
+          return;
+        }
+      }
       setFocusedCell(next);
-      scrollCellIntoView(next, getRowIds().indexOf(next.rowId));
+      setCellSelection(singleCellSelection(next, ordered));
+      scrollCellIntoView(next, ordered.indexOf(next.rowId));
     },
-    [setFocusedCell, scrollCellIntoView, getRowIds],
+    [
+      getRowIds,
+      focusedCell,
+      cellSelection,
+      setCellSelection,
+      setFocusedCell,
+      scrollCellIntoView,
+    ],
   );
 
   const handleKeyDown = useCallback(
@@ -171,13 +219,17 @@ export function useGridKeyboardNav({
             (document.activeElement as HTMLElement | null)?.blur();
             setEditingCell(null);
             if (next) goFocused(next);
-            else setFocusedCell(editingCell);
+            else {
+              setFocusedCell(editingCell);
+              setCellSelection(singleCellSelection(editingCell, getRowIds()));
+            }
             break;
           }
           case "Escape": {
             e.preventDefault();
             setEditingCell(null);
             setFocusedCell(editingCell);
+            setCellSelection(singleCellSelection(editingCell, getRowIds()));
             break;
           }
         }
@@ -192,9 +244,17 @@ export function useGridKeyboardNav({
         if (selectionCount > 0) {
           e.preventDefault();
           clearSelection();
+        } else if (cellSelection && cellSelection.rowIds.length > 1) {
+          e.preventDefault();
+          if (focusedCell) {
+            setCellSelection(singleCellSelection(focusedCell, getRowIds()));
+          } else {
+            setCellSelection(null);
+          }
         } else if (focusedCell) {
           e.preventDefault();
           setFocusedCell(null);
+          setCellSelection(null);
         }
         return;
       }
@@ -203,11 +263,29 @@ export function useGridKeyboardNav({
         if (selectionCount > 0) {
           e.preventDefault();
           void deleteSelected();
-        } else if (focusedCell) {
+        } else if (focusedCell || (cellSelection && cellSelection.rowIds.length > 0)) {
           e.preventDefault();
-          clearCell(focusedCell);
+          clearSelectionCells();
         }
         return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === "c" || key === "insert") {
+          if (focusedCell && focusedCell.propertyId !== "__row_number") {
+            e.preventDefault();
+            copyCell(focusedCell);
+          }
+          return;
+        }
+        if (key === "v") {
+          if (focusedCell && focusedCell.propertyId !== "__row_number") {
+            e.preventDefault();
+            void pasteCell(focusedCell);
+          }
+          return;
+        }
       }
 
       if (!focusedCell) return;
@@ -216,28 +294,56 @@ export function useGridKeyboardNav({
         case "ArrowUp":
           e.preventDefault();
           {
-            const next = computeNextCell(getRowIds(), getNavColIds(), focusedCell, -1, 0, false);
-            if (next) goFocused(next);
+            const next = computeNextCell(
+              getRowIds(),
+              getNavColIds(),
+              focusedCell,
+              -1,
+              0,
+              false,
+            );
+            if (next) goFocused(next, { extend: e.shiftKey });
           }
           break;
         case "ArrowDown":
           e.preventDefault();
           {
-            const next = computeNextCell(getRowIds(), getNavColIds(), focusedCell, 1, 0, false);
-            if (next) goFocused(next);
+            const next = computeNextCell(
+              getRowIds(),
+              getNavColIds(),
+              focusedCell,
+              1,
+              0,
+              false,
+            );
+            if (next) goFocused(next, { extend: e.shiftKey });
           }
           break;
         case "ArrowLeft":
           e.preventDefault();
           {
-            const next = computeNextCell(getRowIds(), getNavColIds(), focusedCell, 0, -1, false);
+            const next = computeNextCell(
+              getRowIds(),
+              getNavColIds(),
+              focusedCell,
+              0,
+              -1,
+              false,
+            );
             if (next) goFocused(next);
           }
           break;
         case "ArrowRight":
           e.preventDefault();
           {
-            const next = computeNextCell(getRowIds(), getNavColIds(), focusedCell, 0, 1, false);
+            const next = computeNextCell(
+              getRowIds(),
+              getNavColIds(),
+              focusedCell,
+              0,
+              1,
+              false,
+            );
             if (next) goFocused(next);
           }
           break;
@@ -292,6 +398,7 @@ export function useGridKeyboardNav({
       containerRef,
       editingCell,
       focusedCell,
+      cellSelection,
       getRowIds,
       getColIds,
       getNavColIds,
@@ -299,8 +406,11 @@ export function useGridKeyboardNav({
       goFocused,
       setEditingCell,
       setFocusedCell,
+      setCellSelection,
       openEditor,
-      clearCell,
+      clearSelectionCells,
+      copyCell,
+      pasteCell,
       beginTypeToEdit,
       propertyType,
       selectionCount,

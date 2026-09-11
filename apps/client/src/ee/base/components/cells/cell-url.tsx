@@ -4,6 +4,7 @@ import { Tooltip } from "@mantine/core";
 import { useEditableTextCell } from "@/ee/base/hooks/use-editable-text-cell";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 import gridClasses from "@/ee/base/styles/grid.module.css";
+import { useBaseSearchHighlight } from "@/features/page-find/utils/highlight-text-matches";
 
 type CellUrlProps = {
   value: unknown;
@@ -29,6 +30,8 @@ export function CellUrl({ value, property, rowId, isEditing, onCommit, onCancel 
       rowId,
       propertyId: property.id,
     });
+  const displayValue = toDraft(value);
+  const highlighted = useBaseSearchHighlight(displayValue);
 
   if (isEditing) {
     return (
@@ -45,14 +48,13 @@ export function CellUrl({ value, property, rowId, isEditing, onCommit, onCancel 
     );
   }
 
-  const displayValue = toDraft(value);
   if (!displayValue) {
     return <span className={cellClasses.emptyValue} />;
   }
 
   const safeHref = sanitizeUrl(displayValue);
   if (!safeHref) {
-    return <span>{displayValue}</span>;
+    return <span>{highlighted}</span>;
   }
 
   return (
@@ -64,7 +66,7 @@ export function CellUrl({ value, property, rowId, isEditing, onCommit, onCancel 
         rel="noopener noreferrer"
         onClick={(e) => e.stopPropagation()}
       >
-        {displayValue}
+        {highlighted}
       </a>
     </Tooltip>
   );

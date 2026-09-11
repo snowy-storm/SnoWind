@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Tooltip } from "@mantine/core";
 import clsx from "clsx";
 import gridClasses from "@/ee/base/styles/grid.module.css";
+import { useBaseSearchHighlight } from "@/features/page-find/utils/highlight-text-matches";
 
 type WrapCellTextProps = {
   children: string;
@@ -17,6 +18,7 @@ function isOverflowing(el: HTMLElement): boolean {
 export function WrapCellText({ children, className }: WrapCellTextProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const [overflowed, setOverflowed] = useState(false);
+  const highlighted: ReactNode = useBaseSearchHighlight(children);
 
   const handleMouseEnter = () => {
     const el = ref.current;
@@ -38,7 +40,7 @@ export function WrapCellText({ children, className }: WrapCellTextProps) {
         className={clsx(gridClasses.cellContent, className)}
         onMouseEnter={handleMouseEnter}
       >
-        {children}
+        {highlighted}
       </span>
     </Tooltip>
   );

@@ -1,4 +1,7 @@
 .findDialog{
+  z-index: 300;
+  box-sizing: border-box;
+
   @media print {
     display: none;
   }
@@ -7,8 +10,4 @@
 .findDialog div[data-position="right"].mantine-Input-section {
   justify-content: right;
   padding-right: 8px;
-}
-
-.globalResult:hover {
-  background: var(--mantine-color-default-hover);
 }

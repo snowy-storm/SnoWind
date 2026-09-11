@@ -202,7 +202,10 @@ export default function ShareShell({
 
           {shareId && (
             <Group visibleFrom="sm">
-              <SearchControl onClick={shareSearchSpotlight.open} />
+              <SearchControl
+                onClick={shareSearchSpotlight.open}
+                enablePageFind={false}
+              />
             </Group>
           )}
 

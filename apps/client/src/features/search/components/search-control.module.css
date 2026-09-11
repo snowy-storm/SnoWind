@@ -1,10 +1,13 @@
 .root {
     height: 34px;
+    min-width: 220px;
     padding-left: var(--mantine-spacing-sm);
-    padding-right: 4px;
+    padding-right: var(--mantine-spacing-sm);
     border-radius: var(--mantine-radius-md);
     color: var(--mantine-color-placeholder);
     border: 1px solid;
+    display: flex;
+    align-items: center;
 
     @mixin light {
         border-color: var(--mantine-color-gray-3);
@@ -15,32 +18,44 @@
         border-color: var(--mantine-color-dark-4);
         background-color: var(--mantine-color-dark-6);
     }
-
-    @mixin rtl {
-        padding-left: 4px;
-        padding-right: var(--mantine-spacing-sm);
-    }
 }
 
-.shortcut {
+.wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.modeBtn {
     font-size: 11px;
     line-height: 1;
-    padding: 4px 7px;
+    padding: 6px 10px;
     border-radius: var(--mantine-radius-sm);
     border: 1px solid;
-    font-weight: bold;
     white-space: nowrap;
-    flex-shrink: 0;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
 
     @mixin light {
         color: var(--mantine-color-gray-7);
-        border-color: var(--mantine-color-gray-2);
+        border-color: var(--mantine-color-gray-3);
         background-color: var(--mantine-color-gray-0);
     }
 
     @mixin dark {
         color: var(--mantine-color-dark-0);
-        border-color: var(--mantine-color-dark-7);
-        background-color: var(--mantine-color-dark-7);
+        border-color: var(--mantine-color-dark-4);
+        background-color: var(--mantine-color-dark-6);
+    }
+
+    &:hover {
+        @mixin light {
+            background-color: var(--mantine-color-gray-1);
+        }
+
+        @mixin dark {
+            background-color: var(--mantine-color-dark-5);
+        }
     }
 }

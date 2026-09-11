@@ -36,8 +36,6 @@ interface SearchSpotlightFiltersProps {
   onAskClick?: () => void;
   spaceId?: string;
   isAiMode?: boolean;
-  /** When true, Title only starts enabled (global search default). */
-  defaultTitleOnly?: boolean;
 }
 
 export function SearchSpotlightFilters({
@@ -45,7 +43,6 @@ export function SearchSpotlightFilters({
   onAskClick,
   spaceId,
   isAiMode = false,
-  defaultTitleOnly = false,
 }: SearchSpotlightFiltersProps) {
   const { t } = useTranslation();
   const hasAttachmentIndexing = useHasFeature(Feature.ATTACHMENT_INDEXING);
@@ -58,7 +55,7 @@ export function SearchSpotlightFilters({
     null
   );
   const [selectedLabelIds, setSelectedLabelIds] = useState<string[]>([]);
-  const [titleOnly, setTitleOnly] = useState(defaultTitleOnly);
+  const [titleOnly, setTitleOnly] = useState(false);
   const [openedFilter, setOpenedFilter] = useState<string | null>(null);
   const [visibleFilters, setVisibleFilters] = useState<string[]>([]);
   const [workspace] = useAtom(workspaceAtom);

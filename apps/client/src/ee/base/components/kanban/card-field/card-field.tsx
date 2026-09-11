@@ -26,6 +26,7 @@ import {
 import { buildPageUrl, getPageTitle } from "@/features/page/page.utils";
 import { FileValue } from "@/ee/base/components/cells/cell-file";
 import cellClasses from "@/ee/base/styles/cells.module.css";
+import { useBaseSearchHighlight } from "@/features/page-find/utils/highlight-text-matches";
 
 type CardFieldProps = {
   property: IBaseProperty;
@@ -83,10 +84,11 @@ export function CardField({ property, value, pageId }: CardFieldProps) {
 
 function TextField({ value }: { value: unknown }) {
   const text = typeof value === "string" ? value : String(value);
+  const highlighted = useBaseSearchHighlight(text);
   if (!text) return null;
   return (
     <Text size="sm" lineClamp={2}>
-      {text}
+      {highlighted}
     </Text>
   );
 }
@@ -102,20 +104,22 @@ function AutoNumberField({
     value,
     property.typeOptions as AutoNumberTypeOptions | undefined,
   );
+  const highlighted = useBaseSearchHighlight(text);
   if (!text) return null;
   return (
     <Text size="sm" style={{ fontVariantNumeric: "tabular-nums" }} lineClamp={1}>
-      {text}
+      {highlighted}
     </Text>
   );
 }
 
 function LongTextField({ value }: { value: unknown }) {
   const preview = formatLongTextPreview(typeof value === "string" ? value : undefined);
+  const highlighted = useBaseSearchHighlight(preview ?? "");
   if (!preview) return null;
   return (
     <Text size="xs" c="dimmed" lineClamp={2}>
-      {preview}
+      {highlighted}
     </Text>
   );
 }
@@ -287,12 +291,13 @@ function CheckboxField({ value }: { value: unknown }) {
 
 function UrlField({ value }: { value: unknown }) {
   const displayValue = typeof value === "string" ? value : "";
+  const highlighted = useBaseSearchHighlight(displayValue);
   if (!displayValue) return null;
   const safeHref = sanitizeUrl(displayValue);
   if (!safeHref) {
     return (
       <Text size="xs" lineClamp={1}>
-        {displayValue}
+        {highlighted}
       </Text>
     );
   }
@@ -306,7 +311,7 @@ function UrlField({ value }: { value: unknown }) {
         onClick={(e) => e.stopPropagation()}
         style={{ fontSize: "var(--mantine-font-size-xs)" }}
       >
-        {displayValue}
+        {highlighted}
       </a>
     </Tooltip>
   );
@@ -314,6 +319,7 @@ function UrlField({ value }: { value: unknown }) {
 
 function EmailField({ value }: { value: unknown }) {
   const displayValue = typeof value === "string" ? value : "";
+  const highlighted = useBaseSearchHighlight(displayValue);
   if (!displayValue) return null;
   return (
     <Tooltip label={displayValue} multiline withinPortal openDelay={400} maw={420}>
@@ -323,7 +329,7 @@ function EmailField({ value }: { value: unknown }) {
         onClick={(e) => e.stopPropagation()}
         style={{ fontSize: "var(--mantine-font-size-xs)" }}
       >
-        {displayValue}
+        {highlighted}
       </a>
     </Tooltip>
   );

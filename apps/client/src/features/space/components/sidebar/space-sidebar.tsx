@@ -55,7 +55,7 @@ import {
 } from "@/features/favorite/queries/favorite-query";
 import { mobileSidebarAtom } from "@/components/layouts/global/hooks/atoms/sidebar-atom.ts";
 import { useToggleSidebar } from "@/components/layouts/global/hooks/hooks/use-toggle-sidebar.ts";
-import { openSearchSpotlight } from "@/features/search/open-search-spotlight";
+import { openGlobalSearch } from "@/features/search/open-search-spotlight";
 const TemplatePickerModal = React.lazy(
   () => import("@/ee/template/components/template-picker-modal"),
 );
@@ -159,7 +159,7 @@ export function SpaceSidebar() {
 
             <UnstyledButton
               className={classes.menu}
-              onClick={() => openSearchSpotlight("global")}
+              onClick={openGlobalSearch}
             >
               <div className={classes.menuItemInner}>
                 <IconSearch

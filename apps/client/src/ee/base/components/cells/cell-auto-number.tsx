@@ -2,6 +2,7 @@ import { Text } from "@mantine/core";
 import { IBaseProperty, AutoNumberTypeOptions } from "@/ee/base/types/base.types";
 import { formatAutoNumberDisplay } from "@/ee/base/formatters/cell-formatters";
 import cellClasses from "@/ee/base/styles/cells.module.css";
+import { useBaseSearchHighlight } from "@/features/page-find/utils/highlight-text-matches";
 
 type CellAutoNumberProps = {
   value: unknown;
@@ -19,6 +20,7 @@ export function CellAutoNumber({ value, property }: CellAutoNumberProps) {
     value,
     property.typeOptions as AutoNumberTypeOptions | undefined,
   );
+  const highlighted = useBaseSearchHighlight(display);
 
   if (!display) {
     return <span className={cellClasses.emptyValue} />;
@@ -26,7 +28,7 @@ export function CellAutoNumber({ value, property }: CellAutoNumberProps) {
 
   return (
     <Text size="sm" style={{ fontVariantNumeric: "tabular-nums" }} truncate>
-      {display}
+      {highlighted}
     </Text>
   );
 }

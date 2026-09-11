@@ -28,7 +28,7 @@ import {
   SearchControl,
   SearchMobileControl,
 } from "@/features/search/components/search-control.tsx";
-import { openSearchSpotlight } from "@/features/search/open-search-spotlight";
+import { openGlobalSearch } from "@/features/search/open-search-spotlight";
 import { shareSearchSpotlight } from "@/features/search/constants.ts";
 import { NotificationPopover } from "@/features/notification/components/notification-popover.tsx";
 import { workspaceAtom } from "@/features/user/atoms/current-user-atom.ts";
@@ -104,10 +104,10 @@ export function AppHeader() {
 
         <div>
           <Group visibleFrom="sm">
-            <SearchControl onClick={() => openSearchSpotlight("global")} />
+            <SearchControl onClick={openGlobalSearch} />
           </Group>
           <Group hiddenFrom="sm">
-            <SearchMobileControl onSearch={() => openSearchSpotlight("global")} />
+            <SearchMobileControl onSearch={openGlobalSearch} />
           </Group>
         </div>
 

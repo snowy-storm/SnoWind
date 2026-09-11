@@ -7,6 +7,7 @@ import {
   windowScroll,
 } from "@tanstack/react-virtual";
 import { useAtom, useSetAtom, type PrimitiveAtom } from "jotai";
+import { notifications } from "@mantine/notifications";
 import {
   IBaseRow,
   IBaseProperty,
@@ -20,8 +21,11 @@ import {
   focusedCellAtomFamily,
   activeFormulaEditorAtomFamily,
   pendingTypeInsertAtom,
+  cellClipboardAtom,
+  cellSelectionAtomFamily,
   type FormulaEditorTarget,
   type PendingTypeInsert,
+  type CellClipboard,
 } from "@/ee/base/atoms/base-atoms";
 import { isSystemPropertyType } from "@/ee/base/property-types/property-type.registry";
 import { useTranslation } from "react-i18next";
@@ -48,6 +52,22 @@ import {
   rowHeightLineClamp,
   rowHeightPx,
 } from "@/ee/base/utils/row-height";
+import {
+  adaptClipboardValueForTarget,
+  adaptPlainTextForTarget,
+  buildCellClipboardPayload,
+  canCopyProperty,
+  canPasteIntoProperty,
+  clipboardToPlainText,
+  mapClipboardValuesToRows,
+  resolvePasteTargetRows,
+} from "@/ee/base/utils/cell-clipboard";
+import {
+  buildCellSelection,
+  singleCellSelection,
+  type CellSelection,
+} from "@/ee/base/utils/cell-selection";
+import { cellValuesEqual } from "@/ee/base/components/cells/cell-value-equal";
 import classes from "@/ee/base/styles/grid.module.css";
 
 const OVERSCAN = 25;
@@ -392,6 +412,198 @@ export function GridContainer({
     [editable, properties, onCellUpdate],
   );
 
+  const [cellClipboard, setCellClipboard] = useAtom(
+    cellClipboardAtom as PrimitiveAtom<CellClipboard>,
+  );
+  const cellClipboardRef = useRef(cellClipboard);
+  cellClipboardRef.current = cellClipboard;
+
+  const [cellSelection, setCellSelection] = useAtom(
+    cellSelectionAtomFamily(pageId) as PrimitiveAtom<CellSelection | null>,
+  );
+  const cellSelectionRef = useRef(cellSelection);
+  cellSelectionRef.current = cellSelection;
+
+  const copyCell = useCallback(
+    (coord: CellCoord) => {
+      const sel = cellSelectionRef.current;
+      const propertyId =
+        sel && sel.rowIds.length > 0 ? sel.propertyId : coord.propertyId;
+      const rowIds =
+        sel && sel.propertyId === coord.propertyId && sel.rowIds.length > 0
+          ? sel.rowIds
+          : [coord.rowId];
+
+      const prop = properties.find((p) => p.id === propertyId);
+      if (!canCopyProperty(prop) || !prop) return;
+      if (propertyId === "__row_number") return;
+
+      const values: unknown[] = [];
+      for (const rid of rowIds) {
+        try {
+          values.push(table.getRow(rid, true)?.getValue(propertyId));
+        } catch {
+          values.push(null);
+        }
+      }
+
+      const payload = buildCellClipboardPayload(prop, values);
+      setCellClipboard(payload);
+
+      const plain = clipboardToPlainText(payload);
+      void navigator.clipboard?.writeText(plain).catch(() => {
+        // Permissions or non-secure context — in-app clipboard still works.
+      });
+    },
+    [properties, setCellClipboard, table],
+  );
+
+  const pasteCell = useCallback(
+    async (coord: CellCoord) => {
+      if (!editable) return;
+
+      const sel = cellSelectionRef.current;
+      const destPropertyId =
+        sel && sel.rowIds.length > 0 ? sel.propertyId : coord.propertyId;
+      const prop = properties.find((p) => p.id === destPropertyId);
+      if (!canPasteIntoProperty(prop) || !prop) return;
+      if (destPropertyId === "__row_number") return;
+
+      const ordered = getOrderedRowIds();
+      const destSelectedRows =
+        sel && sel.propertyId === destPropertyId ? sel.rowIds : [coord.rowId];
+      const startRowId = destSelectedRows[0] ?? coord.rowId;
+
+      const internal = cellClipboardRef.current;
+      let sourceValues: unknown[] | null = null;
+      let usingInternal = false;
+      let internalFailReason: "type" | "empty-map" | null = null;
+
+      if (internal && internal.values.length > 0) {
+        const probe = adaptClipboardValueForTarget(
+          internal,
+          internal.values[0],
+          prop,
+        );
+        if (probe.ok === true) {
+          sourceValues = internal.values;
+          usingInternal = true;
+        } else {
+          internalFailReason = probe.reason;
+        }
+      }
+
+      if (!sourceValues) {
+        try {
+          const text = await navigator.clipboard?.readText();
+          if (text != null && text.length > 0) {
+            const lines = text.split(/\r?\n/);
+            if (lines.length > 1 && lines[lines.length - 1] === "") {
+              lines.pop();
+            }
+            const adaptedLines: unknown[] = [];
+            let allOk = true;
+            for (const line of lines) {
+              const adapted = adaptPlainTextForTarget(line, prop);
+              if (!adapted.ok) {
+                allOk = false;
+                break;
+              }
+              adaptedLines.push(adapted.value);
+            }
+            if (allOk && adaptedLines.length > 0) {
+              sourceValues = adaptedLines;
+            } else if (lines.length === 1) {
+              const adapted = adaptPlainTextForTarget(text, prop);
+              if (adapted.ok) sourceValues = [adapted.value];
+            }
+          }
+        } catch {
+          // Clipboard read denied — ignore.
+        }
+      }
+
+      if (!sourceValues) {
+        if (internalFailReason === "type") {
+          notifications.show({
+            message: t("Can only paste into a cell of the same type"),
+            color: "yellow",
+          });
+        } else if (internalFailReason === "empty-map") {
+          notifications.show({
+            message: t("Pasted value does not match this property's options"),
+            color: "yellow",
+          });
+        }
+        return;
+      }
+
+      const destRows = resolvePasteTargetRows(
+        ordered,
+        startRowId,
+        destSelectedRows,
+        sourceValues.length,
+      );
+      const mapped = mapClipboardValuesToRows(destRows, sourceValues);
+
+      for (const { rowId, value } of mapped) {
+        let nextValue = value;
+        if (usingInternal && internal) {
+          const adapted = adaptClipboardValueForTarget(internal, value, prop);
+          if (adapted.ok !== true) continue;
+          nextValue = adapted.value;
+        }
+        let current: unknown;
+        try {
+          current = table.getRow(rowId, true)?.getValue(destPropertyId);
+        } catch {
+          continue;
+        }
+        if (cellValuesEqual(current, nextValue)) continue;
+        onCellUpdate(rowId, destPropertyId, nextValue);
+      }
+
+      // Select the pasted range.
+      if (destRows.length > 0) {
+        const nextSel = buildCellSelection(
+          destPropertyId,
+          destRows[0],
+          destRows[destRows.length - 1],
+          ordered,
+        );
+        if (nextSel) setCellSelection(nextSel);
+        setFocusedCell({
+          rowId: destRows[destRows.length - 1],
+          propertyId: destPropertyId,
+        });
+      }
+    },
+    [
+      editable,
+      properties,
+      getOrderedRowIds,
+      table,
+      onCellUpdate,
+      t,
+      setCellSelection,
+      setFocusedCell,
+    ],
+  );
+
+  const clearSelectionCells = useCallback(() => {
+    if (!editable) return;
+    const sel = cellSelectionRef.current;
+    if (sel && sel.rowIds.length > 0) {
+      const prop = properties.find((p) => p.id === sel.propertyId);
+      if (!prop || isSystemPropertyType(prop.type)) return;
+      for (const rid of sel.rowIds) {
+        onCellUpdate(rid, sel.propertyId, null);
+      }
+      return;
+    }
+    if (focusedCellRef.current) clearCell(focusedCellRef.current);
+  }, [editable, properties, onCellUpdate, clearCell]);
+
   const beginTypeToEdit = useCallback(
     (coord: CellCoord, char: string) => {
       if (!editable) return;
@@ -430,22 +642,28 @@ export function GridContainer({
     const prev = prevEditingRef.current;
     prevEditingRef.current = editingCell;
     if (prev && !editingCell) {
-      if (!focusedCellRef.current) setFocusedCell(prev);
+      if (!focusedCellRef.current) {
+        setFocusedCell(prev);
+        setCellSelection(singleCellSelection(prev, getOrderedRowIds()));
+      }
       const grid = bodyRef.current;
       const active = document.activeElement;
       if (grid && active && !grid.contains(active)) {
         grid.focus({ preventScroll: true });
       }
     }
-  }, [editingCell, setFocusedCell]);
+  }, [editingCell, setFocusedCell, setCellSelection, getOrderedRowIds]);
 
   useEffect(() => {
     const fc = focusedCellRef.current;
     if (!fc) return;
     const rowOk = rowIds.includes(fc.rowId);
     const colOk = table.getVisibleLeafColumns().some((c) => c.id === fc.propertyId);
-    if (!rowOk || !colOk) setFocusedCell(null);
-  }, [rowIds, table.getState().columnVisibility, table.getState().columnOrder, setFocusedCell]);
+    if (!rowOk || !colOk) {
+      setFocusedCell(null);
+      setCellSelection(null);
+    }
+  }, [rowIds, table.getState().columnVisibility, table.getState().columnOrder, setFocusedCell, setCellSelection]);
 
   const handleGridFocus = useCallback(
     (e: React.FocusEvent<HTMLDivElement>) => {
@@ -455,9 +673,13 @@ export function GridContainer({
       const firstCol = table
         .getVisibleLeafColumns()
         .find((c) => c.id !== "__row_number")?.id;
-      if (firstRow && firstCol) setFocusedCell({ rowId: firstRow, propertyId: firstCol });
+      if (firstRow && firstCol) {
+        const coord = { rowId: firstRow, propertyId: firstCol };
+        setFocusedCell(coord);
+        setCellSelection(singleCellSelection(coord, getOrderedRowIds()));
+      }
     },
-    [table, setFocusedCell],
+    [table, setFocusedCell, setCellSelection, getOrderedRowIds],
   );
 
   const handleAddRowBelow = useCallback(
@@ -476,7 +698,9 @@ export function GridContainer({
     editingCell,
     setEditingCell,
     openEditor,
-    clearCell,
+    clearSelectionCells,
+    copyCell,
+    pasteCell,
     beginTypeToEdit,
     scrollCellIntoView,
     selectionCount,
@@ -486,6 +710,8 @@ export function GridContainer({
     expandRow,
     addRow: handleAddRowBelow,
     getOrderedRowIds,
+    cellSelection,
+    setCellSelection,
   });
 
   const activeCell = editingCell ?? focusedCell;

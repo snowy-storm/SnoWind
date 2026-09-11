@@ -404,16 +404,117 @@
 .bodyGrid:focus .cellFocused {
   outline: 2px solid var(--mantine-color-blue-5);
   outline-offset: -2px;
-  z-index: 1;
+  z-index: 2;
 }
 
 @media (hover: none) {
   .cellFocused {
     outline: 2px solid var(--mantine-color-blue-5);
     outline-offset: -2px;
-    z-index: 1;
+    z-index: 2;
   }
 }
+
+/* Positioning context for the fill handle. Pinned cells already use sticky. */
+.cellFocused:not(.cellPinned),
+.cellSelected:not(.cellPinned),
+.cellFillPreview:not(.cellPinned) {
+  position: relative;
+}
+
+.cellSelected {
+  background-color: light-dark(
+    var(--mantine-color-blue-0),
+    rgba(34, 139, 230, 0.22)
+  );
+}
+
+.bodyGrid:focus .cellSelected {
+  outline: 1px solid var(--mantine-color-blue-5);
+  outline-offset: -1px;
+  z-index: 1;
+}
+
+.bodyGrid:focus .cellFocused.cellSelected {
+  outline: 2px solid var(--mantine-color-blue-5);
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+@media (hover: hover) {
+  .row:hover .cellSelected {
+    background-color: light-dark(
+      var(--mantine-color-blue-0),
+      rgba(34, 139, 230, 0.22)
+    );
+  }
+
+  .row:hover .cellSelected.cellPinned {
+    background-color: light-dark(
+      var(--mantine-color-blue-0),
+      rgba(34, 139, 230, 0.22)
+    );
+  }
+}
+
+.cellFillPreview {
+  background-color: light-dark(
+    var(--mantine-color-blue-0),
+    var(--mantine-color-blue-9)
+  );
+  outline: 2px solid var(--mantine-color-blue-5);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+@media (hover: hover) {
+  .row:hover .cellFillPreview {
+    background-color: light-dark(
+      var(--mantine-color-blue-0),
+      var(--mantine-color-blue-9)
+    );
+  }
+
+  .row:hover .cellFillPreview.cellPinned {
+    background-color: light-dark(
+      var(--mantine-color-blue-0),
+      var(--mantine-color-blue-9)
+    );
+  }
+}
+
+.fillHandle {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  border-radius: 0;
+  background-color: var(--mantine-color-blue-5);
+  box-sizing: border-box;
+  cursor: crosshair;
+  touch-action: none;
+  z-index: 5;
+}
+
+/* Enlarge hit target without relying on overflow:visible */
+.fillHandle::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bodyGrid:focus .cellFocused .fillHandle,
+  .bodyGrid:focus .cellSelected .fillHandle {
+    display: block;
+  }
+}
+
 
 .headerCell:focus-visible {
   outline: 2px solid var(--mantine-color-blue-5);

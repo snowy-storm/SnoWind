@@ -74,7 +74,7 @@ import { extractPageSlugId, platformModifierKey } from "@/lib";
 import { FIVE_MINUTES } from "@/lib/constants.ts";
 import { PageEditMode } from "@/features/user/types/user.types.ts";
 import { jwtDecode } from "jwt-decode";
-import { openSearchSpotlight } from "@/features/search/open-search-spotlight";
+import { openGlobalSearch } from "@/features/search/open-search-spotlight";
 import { useEditorScroll } from "./hooks/use-editor-scroll";
 import { EditorAiMenu } from "@/ee/ai/components/editor/ai-menu/ai-menu";
 import { EditorLinkMenu } from "@/features/editor/components/link/link-menu";
@@ -281,7 +281,7 @@ function CollabPageEditor({
               return true;
             }
             if (platformModifierKey(event) && event.code === "KeyK") {
-              openSearchSpotlight("global");
+              openGlobalSearch();
               return true;
             }
             if (["ArrowUp", "ArrowDown", "Enter"].includes(event.key)) {

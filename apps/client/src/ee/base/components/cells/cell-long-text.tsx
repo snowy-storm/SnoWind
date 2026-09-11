@@ -4,6 +4,7 @@ import { useDebouncedCallback } from "@mantine/hooks";
 import { IBaseProperty } from "@/ee/base/types/base.types";
 import cellClasses from "@/ee/base/styles/cells.module.css";
 import gridClasses from "@/ee/base/styles/grid.module.css";
+import { useBaseSearchHighlight } from "@/features/page-find/utils/highlight-text-matches";
 
 type CellLongTextProps = {
   value: unknown;
@@ -72,6 +73,7 @@ export function CellLongText({
   };
 
   const preview = toText(value);
+  const highlightedPreview = useBaseSearchHighlight(preview);
 
   return (
     <Popover
@@ -98,7 +100,7 @@ export function CellLongText({
           {preview ? (
             <Tooltip label={preview} multiline withinPortal openDelay={400} maw={420}>
               <span className={`${cellClasses.longTextPreview} ${gridClasses.cellContent}`}>
-                {preview}
+                {highlightedPreview}
               </span>
             </Tooltip>
           ) : (

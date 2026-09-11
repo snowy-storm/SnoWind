@@ -14,5 +14,14 @@ export const pageFindStateAtom = atom<PageFindState>({
   scope: "page",
 });
 
+/** Bounding box of the header SearchControl wrap (search box → 本页). */
+export type SearchControlAnchor = {
+  left: number;
+  width: number;
+  bottom: number;
+};
+
+export const searchControlAnchorAtom = atom<SearchControlAnchor | null>(null);
+
 /** Temporary Base filter query; never persisted to view config. */
 export const baseQuickSearchAtom = atom("");

@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 import { flushSync } from "react-dom";
 import { Cell } from "@tanstack/react-table";
 import { Popover, Tooltip } from "@mantine/core";
@@ -10,18 +10,26 @@ import { IBaseRow, EditingCell, FocusedCell } from "@/ee/base/types/base.types";
 import {
   editingCellAtomFamily,
   focusedCellAtomFamily,
+  fillPreviewAtomFamily,
+  cellSelectionAtomFamily,
   activeFormulaEditorAtomFamily,
   FormulaEditorTarget,
 } from "@/ee/base/atoms/base-atoms";
 import { FormulaPropertyEditor } from "@/ee/base/components/formula/formula-property-editor";
 import {
   isSystemPropertyType,
+  isFillablePropertyType,
   getDescriptor,
 } from "@/ee/base/property-types/property-type.registry";
 import { cellValuesEqual } from "@/ee/base/components/cells/cell-value-equal";
 import { computeNextCell } from "@/ee/base/utils/grid-cell-nav";
+import { fillCellKey } from "@/ee/base/utils/cell-fill";
+import type { CellSelection } from "@/ee/base/utils/cell-selection";
 import { useBaseEditable } from "@/ee/base/context/base-editable";
+import { useGridRowOrder } from "@/ee/base/context/grid-row-order";
 import { useRowExpand } from "@/ee/base/context/row-expand";
+import { useCellFill } from "@/ee/base/hooks/use-cell-fill";
+import { useCellSelectionDrag } from "@/ee/base/hooks/use-cell-selection-drag";
 import { RowNumberCell } from "./row-number-cell";
 import classes from "@/ee/base/styles/grid.module.css";
 
@@ -61,11 +69,48 @@ export const GridCell = memo(function GridCell({
       [pageId, cell.row.id, property?.id],
     ),
   );
+  const isFillPreview = useAtomValue(
+    useMemo(
+      () =>
+        selectAtom(fillPreviewAtomFamily(pageId), (fp) => {
+          if (!fp || !property?.id) return false;
+          return fp.cellKeys.has(fillCellKey(cell.row.id, property.id));
+        }),
+      [pageId, cell.row.id, property?.id],
+    ),
+  );
+  const isSelected = useAtomValue(
+    useMemo(
+      () =>
+        selectAtom(cellSelectionAtomFamily(pageId), (sel) => {
+          if (!sel || !property?.id || sel.propertyId !== property.id) return false;
+          return sel.rowIds.includes(cell.row.id);
+        }),
+      [pageId, cell.row.id, property?.id],
+    ),
+  );
+  const isSelectionBottom = useAtomValue(
+    useMemo(
+      () =>
+        selectAtom(cellSelectionAtomFamily(pageId), (sel) => {
+          if (!sel || !property?.id || sel.propertyId !== property.id) return false;
+          return sel.rowIds[sel.rowIds.length - 1] === cell.row.id;
+        }),
+      [pageId, cell.row.id, property?.id],
+    ),
+  );
+
+  const cellSelection = useAtomValue(
+    cellSelectionAtomFamily(pageId) as PrimitiveAtom<CellSelection | null>,
+  );
+  const cellSelectionRef = useRef(cellSelection);
+  cellSelectionRef.current = cellSelection;
 
   const { t } = useTranslation();
   const editable = useBaseEditable();
   const readOnly = !editable;
   const onExpandRow = useRowExpand();
+  const getOrderedRowIds = useGridRowOrder();
 
   const rowId = cell.row.id;
   const isEditing =
@@ -73,12 +118,33 @@ export const GridCell = memo(function GridCell({
     editingCell?.propertyId === property?.id &&
     (editable || property?.type === "file");
 
+  const canFill =
+    !readOnly &&
+    !isEditing &&
+    !!property &&
+    isFillablePropertyType(property.type);
+
+  const { onFillPointerDown } = useCellFill({
+    pageId,
+    rowId,
+    propertyId: property?.id ?? "",
+    table: cell.getContext().table,
+    getOrderedRowIds,
+    onCellUpdate,
+  });
+
+  const { onCellPointerDown } = useCellSelectionDrag({
+    pageId,
+    rowId,
+    propertyId: property?.id ?? "",
+    getOrderedRowIds,
+    getSelection: () => cellSelectionRef.current,
+  });
+
   const handleEdit = useCallback(() => {
     if (!property || isRowNumber) return;
     if (property.type === "checkbox") return;
     if (readOnly) {
-      // Read-only: only the file cell opens (a download-only popover) so
-      // attachments stay reachable.
       if (property.type === "file") {
         flushSync(() => setEditingCell({ rowId, propertyId: property.id }));
       }
@@ -92,23 +158,22 @@ export const GridCell = memo(function GridCell({
     flushSync(() => setEditingCell({ rowId, propertyId: property.id }));
   }, [property, isRowNumber, rowId, readOnly, setEditingCell, setActiveFormulaEditor]);
 
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!property || e.button !== 0 || isEditing) return;
-      setFocusedCell({ rowId, propertyId: property.id });
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!property || isEditing) return;
+      onCellPointerDown(e);
     },
-    [property, rowId, setFocusedCell, isEditing],
+    [property, isEditing, onCellPointerDown],
   );
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!property || isEditing) return;
-      setFocusedCell({ rowId, propertyId: property.id });
       (e.currentTarget.closest('[role="grid"]') as HTMLElement | null)?.focus({
         preventScroll: true,
       });
     },
-    [property, rowId, setFocusedCell, isEditing],
+    [property, isEditing],
   );
 
   const cellReadOnly = property
@@ -186,6 +251,7 @@ export const GridCell = memo(function GridCell({
   if (!CellComponent) return null;
 
   const value = cell.getValue();
+  const showFillHandle = canFill && isSelectionBottom && !isEditing;
 
   const cellInner = (
     <div
@@ -193,14 +259,17 @@ export const GridCell = memo(function GridCell({
       role="gridcell"
       aria-colindex={colIndex != null ? colIndex + 1 : undefined}
       aria-readonly={cellReadOnly || undefined}
-      className={`${classes.cell} ${isPinned ? classes.cellPinned : ""} ${isEditing ? classes.cellEditing : ""} ${isFocused && !isEditing ? classes.cellFocused : ""} ${property.isPrimary ? classes.primaryCell : ""}`}
+      aria-selected={isSelected || undefined}
+      data-base-row-id={rowId}
+      data-base-property-id={property.id}
+      className={`${classes.cell} ${isPinned ? classes.cellPinned : ""} ${isEditing ? classes.cellEditing : ""} ${isFocused && !isEditing ? classes.cellFocused : ""} ${isSelected && !isEditing ? classes.cellSelected : ""} ${isFillPreview ? classes.cellFillPreview : ""} ${property.isPrimary ? classes.primaryCell : ""}`}
       style={
         isPinned
           ? ({ "--pin-offset": `${pinOffset}px` } as React.CSSProperties)
           : undefined
       }
       onClick={handleClick}
-      onMouseDown={handleMouseDown}
+      onPointerDown={handlePointerDown}
       onDoubleClick={handleEdit}
       onWheel={(e) => {
         const el = e.currentTarget;
@@ -239,6 +308,18 @@ export const GridCell = memo(function GridCell({
             </button>
           </Tooltip>
         </span>
+      )}
+      {showFillHandle && (
+        <button
+          type="button"
+          tabIndex={-1}
+          data-base-fill-handle=""
+          className={classes.fillHandle}
+          aria-label={t("Drag to fill")}
+          onPointerDown={onFillPointerDown}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+        />
       )}
     </div>
   );
@@ -289,8 +370,6 @@ export const GridCell = memo(function GridCell({
 },
 gridCellPropsEqual);
 
-// Cell instances are re-created whenever the table data identity changes;
-// compare by coordinates + value so unchanged cells skip re-rendering.
 function gridCellPropsEqual(prev: GridCellProps, next: GridCellProps) {
   if (
     prev.rowIndex !== next.rowIndex ||
