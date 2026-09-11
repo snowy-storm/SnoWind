@@ -11,12 +11,15 @@ import {
 import classes from "./search-control.module.css";
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useSetAtom } from "jotai";
+import { useSetAtom, type PrimitiveAtom } from "jotai";
 import {
   openGlobalSearch,
   openPageFind,
 } from "@/features/search/open-search-spotlight";
-import { searchControlAnchorAtom } from "@/features/page-find/atoms/page-find-atom";
+import {
+  searchControlAnchorAtom,
+  type SearchControlAnchor,
+} from "@/features/page-find/atoms/page-find-atom";
 
 type SearchControlProps = {
   className?: string;
@@ -33,7 +36,9 @@ export function SearchControl({
 }: SearchControlProps) {
   const { t } = useTranslation();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const setAnchor = useSetAtom(searchControlAnchorAtom);
+  const setAnchor = useSetAtom(
+    searchControlAnchorAtom as PrimitiveAtom<SearchControlAnchor | null>,
+  );
 
   useEffect(() => {
     const el = wrapRef.current;
