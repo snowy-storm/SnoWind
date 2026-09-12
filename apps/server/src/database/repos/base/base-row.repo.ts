@@ -37,20 +37,23 @@ type FilterCondition = {
     return sql<string>`base_cell_text(cells, ${sql.lit(propId)})`;
   }
 
-  function cellRaw(propId: string) {
-    return sql`cells->${sql.lit(propId)}`;
-  }
-
-  function cellJsonbTypeof(propId: string) {
-    return sql<string>`jsonb_typeof(cells->${sql.lit(propId)})`;
-  }
-
   function likeEscape(val: string): string {
     return val.replace(/[%_\\]/g, '\\$&');
   }
 
   function jsonContains(propertyId: string, v: string) {
     return sql<SqlBool>`(cells->${sql.lit(propertyId)} @> ${sql.lit(JSON.stringify(v))}::jsonb OR cells->${sql.lit(propertyId)} = ${sql.lit(JSON.stringify(v))}::jsonb)`;
+  }
+
+  // Missing key, JSON null, blank text, and empty arrays all count as empty.
+  // Must use IS NULL — `NULL = x` is UNKNOWN in SQL and drops the row in WHERE.
+  function isEmptySql(propertyId: string) {
+    return sql<SqlBool>`(
+      cells->${sql.lit(propertyId)} IS NULL
+      OR jsonb_typeof(cells->${sql.lit(propertyId)}) = 'null'
+      OR COALESCE(base_cell_text(cells, ${sql.lit(propertyId)}), '') = ''
+      OR cells->${sql.lit(propertyId)} = '[]'::jsonb
+    )`;
   }
 
   function buildCondition(
@@ -61,12 +64,8 @@ type FilterCondition = {
     const value = cond.value;
     const col = cellText(propertyId);
 
-    const isEmptyExpr = eb.or([
-      eb(eb.val(null), '=', cellRaw(propertyId)),
-      eb(cellJsonbTypeof(propertyId), '=', 'null'),
-      eb(col, '=', ''),
-    ]);
-    const isNotEmptyExpr = eb.not(isEmptyExpr);
+    const isEmptyExpr = isEmptySql(propertyId);
+    const isNotEmptyExpr = sql<SqlBool>`NOT (${isEmptyExpr})`;
 
     switch (op) {
       case 'eq': {
@@ -74,8 +73,9 @@ type FilterCondition = {
         return eb(col, '=', v);
       }
       case 'neq': {
+        // IS DISTINCT FROM treats NULL as not-equal (includes empty cells).
         const v = value === null || value === undefined ? '' : String(value);
-        return eb.not(eb(col, '=', v));
+        return eb(col, 'is distinct from', v);
       }
       case 'gt': {
         const v = value === null || value === undefined ? '' : String(value);
@@ -99,7 +99,10 @@ type FilterCondition = {
       }
       case 'ncontains': {
         const v = value === null || value === undefined ? '' : String(value);
-        return eb(col, 'not like', `%${likeEscape(v)}%`);
+        return eb.or([
+          isEmptyExpr,
+          eb(col, 'not like', `%${likeEscape(v)}%`),
+        ]);
       }
       case 'startsWith': {
         const v = value === null || value === undefined ? '' : String(value);
@@ -140,7 +143,8 @@ type FilterCondition = {
         if (arr.length === 0) return eb(eb.val(1), '=', 1);
         const values = arr.map((v) => String(v));
         const conds = values.map((v) => jsonContains(propertyId, v));
-        return eb.not(eb.or(conds));
+        // Empty cells are "none of" any value; bare NOT(contains) drops NULLs.
+        return eb.or([isEmptyExpr, eb.not(eb.or(conds))]);
       }
       case 'all': {
         const arr = Array.isArray(value) ? value : value ? [value] : [];

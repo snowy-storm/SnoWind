@@ -1,0 +1,42 @@
+---
+description: SnoWind 研发/现网 Docker 隔离宪法（始终遵守）
+alwaysApply: true
+---
+
+# SnoWind 环境宪法
+
+## 原则
+
+研发与已部署（现网）Docker **完全隔离**。任何操作不得影响现网服务。
+
+## 现网（禁止触碰）
+
+- 路径：`/Users/kevin/Docker Desktop/snowind/`
+- Compose 项目名：`snowind`
+- 端口：应用 `3030`、Postgres `5435`、OnlyOffice `8080`
+- **禁止**：在该目录改配置、对该项目 `down`/`restart`/`stop`、占用上述端口、复用其 volume/网络名
+
+## 研发（本仓库唯一合法栈）
+
+- 本仓库：`/Users/kevin/Cursor/snowind`
+- Compose：仅用 `docker-compose.dev.yml`（项目名 `snowind-dev`）
+- 命令：`pnpm infra:up` / `pnpm infra:office` / `pnpm infra:down` / `pnpm infra:logs`
+- 端口：Postgres `5444`、Redis `2817`、Typesense `8109`、OnlyOffice `8088`；本地应用前端 `5173`、后端 `3010`
+- 环境变量：使用 `.env.dev`（由 `.env.dev.example` 复制），**不要**让研发进程连现网库
+
+## 禁止事项
+
+- 禁止对本仓库执行会起项目名 `snowind` 的正式 `docker-compose.yml` 全栈（会与现网抢资源/端口）
+- 禁止改现网 `APP_SECRET`、数据库密码、volume 数据
+- 停研发栈只用 `pnpm infra:down`，绝不在现网目录执行 `docker compose down`
+
+## 标准研发流程
+
+```shell
+pnpm infra:up
+cp -n .env.dev.example .env.dev
+pnpm install
+pnpm db:migrate
+pnpm infra:office   # 可选
+pnpm dev
+```
