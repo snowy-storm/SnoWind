@@ -25,6 +25,14 @@ import {
   ExportMetadata,
   ExportPageMetadata,
 } from '../../common/helpers/types/export-metadata.types';
+import {
+  SNOWIND_ARCHIVE_FORMAT_VERSION,
+  SNOWIND_ARCHIVE_SOURCE,
+  SnowindArchiveAttachmentMeta,
+  SnowindArchiveBaseData,
+  SnowindArchiveManifest,
+  SnowindArchivePage,
+} from '../../common/helpers/types/snowind-archive.types';
 import { PageRepo } from '@snowind/db/repos/page/page.repo';
 import { PagePermissionRepo } from '@snowind/db/repos/page/page-permission.repo';
 import { Node } from '@tiptap/pm/model';
@@ -39,8 +47,21 @@ import {
   getProsemirrorContent,
 } from '../../common/helpers/prosemirror/utils';
 import { htmlToMarkdown } from '@snowind/editor-ext';
+import {
+  collectPageAttachmentIds,
+  topologicalPageOrder,
+} from './archive/archive.utils';
 
-type AllowedAttachment = { id: string; fileName: string; filePath: string };
+type AllowedAttachment = {
+  id: string;
+  fileName: string;
+  filePath: string;
+  fileSize?: number | string | null;
+  mimeType?: string | null;
+  fileExt?: string | null;
+  pageId?: string | null;
+  type?: string | null;
+};
 
 @Injectable()
 export class ExportService {
@@ -153,6 +174,20 @@ export class ExportService {
     // set to null to make export of pages with parentId work
     pages[parentPageIndex].parentPageId = null;
 
+    if (format === ExportFormat.Archive) {
+      const zip = new JSZip();
+      await this.zipArchive(pages as Page[], zip, {
+        id: pages[0].spaceId,
+        name: getSafePageTitle(pages[0].title),
+      }, userId, ignorePermissions);
+      const zipFile = zip.generateNodeStream({
+        type: 'nodebuffer',
+        streamFiles: true,
+        compression: 'DEFLATE',
+      });
+      return { type: 'zip' as const, stream: zipFile, page: pages[0] };
+    }
+
     const isSinglePage = pages.length === 1 && !includeAttachments;
 
     if (isSinglePage) {
@@ -207,11 +242,15 @@ export class ExportService {
         'pages.slugId',
         'pages.title',
         'pages.icon',
+        'pages.coverPhoto',
         'pages.position',
         'pages.content',
         'pages.parentPageId',
         'pages.spaceId',
         'pages.workspaceId',
+        'pages.isBase',
+        'pages.drawingType',
+        'pages.fileType',
         'pages.createdAt',
         'pages.updatedAt',
       ])
@@ -231,20 +270,26 @@ export class ExportService {
       }
     }
 
-    const tree = buildTree(pages as Page[]);
-
-    const baseUrl = await this.getWorkspaceBaseUrl(pages[0].workspaceId);
     const zip = new JSZip();
 
-    await this.zipPages(
-      tree,
-      format,
-      zip,
-      includeAttachments,
-      baseUrl,
-      userId,
-      ignorePermissions,
-    );
+    if (format === ExportFormat.Archive) {
+      await this.zipArchive(pages as Page[], zip, {
+        id: space.id,
+        name: space.name,
+      }, userId, ignorePermissions);
+    } else {
+      const tree = buildTree(pages as Page[]);
+      const baseUrl = await this.getWorkspaceBaseUrl(pages[0].workspaceId);
+      await this.zipPages(
+        tree,
+        format,
+        zip,
+        includeAttachments,
+        baseUrl,
+        userId,
+        ignorePermissions,
+      );
+    }
 
     const zipFile = zip.generateNodeStream({
       type: 'nodebuffer',
@@ -252,7 +297,10 @@ export class ExportService {
       compression: 'DEFLATE',
     });
 
-    const fileName = `${space.name}-space-export.zip`;
+    const fileName =
+      format === ExportFormat.Archive
+        ? `${space.name}-archive.zip`
+        : `${space.name}-space-export.zip`;
     return {
       fileStream: zipFile,
       fileName,
@@ -354,6 +402,260 @@ export class ExportService {
     };
 
     zip.file('snowind-metadata.json', JSON.stringify(metadata, null, 2));
+  }
+
+  /**
+   * Native SnoWind archive: ProseMirror JSON + page type metadata + attachments + bases.
+   */
+  async zipArchive(
+    pages: Page[],
+    zip: JSZip,
+    spaceInfo: { id: string; name: string },
+    userId?: string,
+    ignorePermissions = false,
+  ): Promise<void> {
+    const pageIds = pages.map((p) => p.id);
+    const pageIdSet = new Set(pageIds);
+    const orderedIds = topologicalPageOrder(pages);
+
+    // Dual-channel attachment collection: content refs + page ownership + cover
+    const contentAttachmentIds = new Set<string>();
+    const pageAttachmentIdsMap = new Map<string, string[]>();
+
+    for (const page of pages) {
+      const ids = collectPageAttachmentIds(page);
+      pageAttachmentIdsMap.set(page.id, ids);
+      for (const id of ids) contentAttachmentIds.add(id);
+    }
+
+    const ownedAttachments =
+      pageIds.length > 0
+        ? await this.db
+            .selectFrom('attachments')
+            .select([
+              'id',
+              'fileName',
+              'filePath',
+              'fileSize',
+              'mimeType',
+              'fileExt',
+              'pageId',
+              'type',
+            ])
+            .where('pageId', 'in', pageIds)
+            .where('spaceId', '=', spaceInfo.id)
+            .where('deletedAt', 'is', null)
+            .execute()
+        : [];
+
+    for (const att of ownedAttachments) {
+      contentAttachmentIds.add(att.id);
+      if (att.pageId) {
+        const list = pageAttachmentIdsMap.get(att.pageId) ?? [];
+        if (!list.includes(att.id)) list.push(att.id);
+        pageAttachmentIdsMap.set(att.pageId, list);
+      }
+    }
+
+    const allowed = await this.resolveArchiveAttachments(
+      [...contentAttachmentIds],
+      spaceInfo.id,
+      userId,
+      ignorePermissions,
+      pageIdSet,
+    );
+
+    const exportedAttachmentIds: string[] = [];
+    for (const [id, attachment] of allowed) {
+      try {
+        const fileBuffer = await this.storageService.read(attachment.filePath);
+        const meta: SnowindArchiveAttachmentMeta = {
+          id: attachment.id,
+          fileName: attachment.fileName,
+          fileSize:
+            attachment.fileSize != null ? Number(attachment.fileSize) : null,
+          mimeType: attachment.mimeType ?? null,
+          fileExt: attachment.fileExt ?? null,
+          pageId: attachment.pageId ?? null,
+          type: attachment.type ?? 'file',
+        };
+        zip.file(
+          `attachments/${id}/meta.json`,
+          JSON.stringify(meta, null, 2),
+        );
+        zip.file(`attachments/${id}/${attachment.fileName}`, fileBuffer);
+        exportedAttachmentIds.push(id);
+      } catch (err) {
+        this.logger.debug(`Archive attachment export error ${id}`, err);
+      }
+    }
+
+    const exportedAttachmentSet = new Set(exportedAttachmentIds);
+
+    for (const page of pages) {
+      const content = getProsemirrorContent(page.content);
+      const attachmentIds = (pageAttachmentIdsMap.get(page.id) ?? []).filter(
+        (id) => exportedAttachmentSet.has(id),
+      );
+
+      const archivePage: SnowindArchivePage = {
+        id: page.id,
+        slugId: page.slugId,
+        title: page.title ?? null,
+        icon: page.icon ?? null,
+        coverPhoto: page.coverPhoto ?? null,
+        position: page.position,
+        parentPageId:
+          page.parentPageId && pageIdSet.has(page.parentPageId)
+            ? page.parentPageId
+            : null,
+        isBase: Boolean(page.isBase),
+        drawingType: page.drawingType ?? null,
+        fileType: page.fileType ?? null,
+        content,
+        attachmentIds,
+        createdAt: page.createdAt?.toISOString?.() ?? new Date().toISOString(),
+        updatedAt: page.updatedAt?.toISOString?.() ?? new Date().toISOString(),
+      };
+
+      zip.file(`pages/${page.id}.json`, JSON.stringify(archivePage, null, 2));
+
+      if (page.isBase) {
+        const baseData = await this.exportBaseData(page.id);
+        zip.file(`bases/${page.id}.json`, JSON.stringify(baseData, null, 2));
+      }
+    }
+
+    const manifest: SnowindArchiveManifest = {
+      formatVersion: SNOWIND_ARCHIVE_FORMAT_VERSION,
+      source: SNOWIND_ARCHIVE_SOURCE,
+      appVersion: packageJson.version,
+      exportedAt: new Date().toISOString(),
+      space: spaceInfo,
+      pageIds: orderedIds.filter((id) => pageIdSet.has(id)),
+      attachmentIds: exportedAttachmentIds,
+    };
+
+    zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+  }
+
+  private async exportBaseData(pageId: string): Promise<SnowindArchiveBaseData> {
+    const properties = await this.db
+      .selectFrom('baseProperties')
+      .select([
+        'id',
+        'name',
+        'type',
+        'position',
+        'typeOptions',
+        'isPrimary',
+        'schemaVersion',
+      ])
+      .where('pageId', '=', pageId)
+      .where('deletedAt', 'is', null)
+      .execute();
+
+    const rows = await this.db
+      .selectFrom('baseRows')
+      .select(['id', 'position', 'cells'])
+      .where('pageId', '=', pageId)
+      .where('deletedAt', 'is', null)
+      .execute();
+
+    const views = await this.db
+      .selectFrom('baseViews')
+      .select([
+        'id',
+        'name',
+        'type',
+        'position',
+        'config',
+        'isDefault',
+        'isPrivate',
+      ])
+      .where('pageId', '=', pageId)
+      .execute();
+
+    return {
+      properties: properties.map((p) => ({
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        position: p.position,
+        typeOptions: p.typeOptions,
+        isPrimary: p.isPrimary,
+        schemaVersion: p.schemaVersion ?? 1,
+      })),
+      rows: rows.map((r) => ({
+        id: r.id,
+        position: r.position,
+        cells: (r.cells as Record<string, unknown>) ?? {},
+      })),
+      views: views.map((v) => ({
+        id: v.id,
+        name: v.name,
+        type: v.type,
+        position: v.position,
+        config: v.config,
+        isDefault: v.isDefault,
+        isPrivate: v.isPrivate,
+      })),
+    };
+  }
+
+  private async resolveArchiveAttachments(
+    attachmentIds: string[],
+    spaceId: string,
+    userId: string | undefined,
+    ignorePermissions: boolean,
+    exportedPageIds: Set<string>,
+  ): Promise<Map<string, AllowedAttachment>> {
+    if (attachmentIds.length === 0) {
+      return new Map();
+    }
+
+    const attachments = await this.db
+      .selectFrom('attachments')
+      .select([
+        'id',
+        'fileName',
+        'filePath',
+        'fileSize',
+        'mimeType',
+        'fileExt',
+        'pageId',
+        'type',
+      ])
+      .where('id', 'in', attachmentIds)
+      .where('spaceId', '=', spaceId)
+      .where('deletedAt', 'is', null)
+      .execute();
+
+    let visible = attachments;
+    if (!ignorePermissions && userId) {
+      const ownerPageIds = [
+        ...new Set(
+          attachments
+            .map((a) => a.pageId)
+            .filter(
+              (id): id is string => !!id && exportedPageIds.has(id),
+            ),
+        ),
+      ];
+      const accessible = ownerPageIds.length
+        ? await this.pagePermissionRepo.filterAccessiblePageIds({
+            pageIds: ownerPageIds,
+            userId,
+            spaceId,
+          })
+        : [];
+      const accessibleSet = new Set(accessible);
+      visible = attachments.filter(
+        (a) => a.pageId && accessibleSet.has(a.pageId),
+      );
+    }
+
+    return new Map(visible.map((a) => [a.id, a]));
   }
 
   async zipAttachments(

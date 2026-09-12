@@ -9,6 +9,8 @@ import { FileTaskController } from './file-task.controller';
 import { PageModule } from '../../core/page/page.module';
 import { ConfluenceImportService } from '../../ee/confluence-import/confluence-import.service';
 import { DocxImportService } from '../../ee/document-import/docx-import.service';
+import { SnowindArchiveImportService } from './services/snowind-archive-import.service';
+import { TransclusionModule } from '../../core/page/transclusion/transclusion.module';
 
 @Module({
   providers: [
@@ -18,9 +20,10 @@ import { DocxImportService } from '../../ee/document-import/docx-import.service'
     ImportAttachmentService,
     ConfluenceImportService,
     DocxImportService,
+    SnowindArchiveImportService,
   ],
   exports: [ImportService, ImportAttachmentService],
   controllers: [ImportController, FileTaskController],
-  imports: [StorageModule, PageModule],
+  imports: [StorageModule, PageModule, TransclusionModule],
 })
 export class ImportModule {}

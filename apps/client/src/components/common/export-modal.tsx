@@ -36,6 +36,7 @@ export default function ExportModal({
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const { t } = useTranslation();
   const isDocx = format === ExportFormat.Docx;
+  const isArchive = format === ExportFormat.Archive;
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -48,12 +49,16 @@ export default function ExportModal({
             pageId: id,
             format,
             includeChildren,
-            includeAttachments,
+            includeAttachments: isArchive ? true : includeAttachments,
           });
         }
       }
       if (type === "space") {
-        await exportSpace({ spaceId: id, format, includeAttachments });
+        await exportSpace({
+          spaceId: id,
+          format,
+          includeAttachments: isArchive ? true : includeAttachments,
+        });
       }
       notifications.show({
         message: t("Export successful"),
@@ -73,8 +78,8 @@ export default function ExportModal({
     }
   };
 
-  const handleChange = (format: ExportFormat) => {
-    setFormat(format);
+  const handleChange = (value: string) => {
+    setFormat(value as ExportFormat);
   };
 
   return (
@@ -106,6 +111,17 @@ export default function ExportModal({
             />
           </Group>
 
+          {isArchive && (
+            <>
+              <Divider my="sm" />
+              <Text size="sm" c="dimmed">
+                {t(
+                  "Full archive preserves page types, attachments, drawings, and bases for re-import.",
+                )}
+              </Text>
+            </>
+          )}
+
           {type === "page" && !isDocx && (
             <>
               <Divider my="sm" />
@@ -122,21 +138,23 @@ export default function ExportModal({
                 />
               </Group>
 
-              <Group justify="space-between" wrap="nowrap" mt="md">
-                <div>
-                  <Text size="md">{t("Include attachments")}</Text>
-                </div>
-                <Switch
-                  onChange={(event) =>
-                    setIncludeAttachments(event.currentTarget.checked)
-                  }
-                  checked={includeAttachments}
-                />
-              </Group>
+              {!isArchive && (
+                <Group justify="space-between" wrap="nowrap" mt="md">
+                  <div>
+                    <Text size="md">{t("Include attachments")}</Text>
+                  </div>
+                  <Switch
+                    onChange={(event) =>
+                      setIncludeAttachments(event.currentTarget.checked)
+                    }
+                    checked={includeAttachments}
+                  />
+                </Group>
+              )}
             </>
           )}
 
-          {type === "space" && (
+          {type === "space" && !isArchive && (
             <>
               <Divider my="sm" />
 
@@ -183,6 +201,7 @@ function ExportFormatSelection({
   const data = [
     { value: "markdown", label: "Markdown" },
     { value: "html", label: "HTML" },
+    { value: "archive", label: t("Full archive") },
     ...(includeDocx ? [{ value: "docx", label: "Word (.docx)" }] : []),
   ];
 
@@ -190,9 +209,10 @@ function ExportFormatSelection({
     <Select
       data={data}
       defaultValue={format}
+      value={format}
       onChange={onChange}
-      styles={{ wrapper: { maxWidth: 140 }, option: { opacity: 1 } }}
-      comboboxProps={{ width: 200 }}
+      styles={{ wrapper: { maxWidth: 180 }, option: { opacity: 1 } }}
+      comboboxProps={{ width: 220 }}
       allowDeselect={false}
       withCheckIcon={false}
       aria-label={t("Select export format")}

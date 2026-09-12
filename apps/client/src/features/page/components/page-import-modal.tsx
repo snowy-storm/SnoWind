@@ -76,6 +76,7 @@ function ImportFormatSelection({
   const notionFileRef = useRef<() => void>(null);
   const confluenceFileRef = useRef<() => void>(null);
   const zipFileRef = useRef<() => void>(null);
+  const archiveFileRef = useRef<() => void>(null);
   const tableFileRef = useRef<() => void>(null);
   const slideFileRef = useRef<() => void>(null);
 
@@ -498,6 +499,27 @@ function ImportFormatSelection({
             </Button>
           )}
         </FileButton>
+        <FileButton
+          onChange={(file) => handleZipUpload(file, "snowind-archive")}
+          accept="application/zip"
+          resetRef={archiveFileRef}
+          inputProps={{
+            "aria-label": t("Choose {{format}} file", {
+              format: t("SnoWind archive"),
+            }),
+          }}
+        >
+          {(props) => (
+            <Button
+              justify="start"
+              variant="default"
+              leftSection={<IconFileTypeZip size={18} />}
+              {...props}
+            >
+              {t("SnoWind archive")}
+            </Button>
+          )}
+        </FileButton>
       </SimpleGrid>
 
       <Group justify="center" gap="xl" mih={150}>
@@ -507,7 +529,7 @@ function ImportFormatSelection({
           </Text>
           <Text ta="center" size="sm" c="dimmed" inline py="sm">
             {t(
-              `Upload zip file containing Markdown and HTML files. Max: {{sizeLimit}}`,
+              `Upload zip (Markdown/HTML, or Full archive with manifest.json). Max: {{sizeLimit}}`,
               {
                 sizeLimit: formatBytes(getFileImportSizeLimit()),
               },

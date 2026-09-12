@@ -21,6 +21,10 @@ export function getExportExtension(format: string) {
   if (format === ExportFormat.Markdown) {
     return '.md';
   }
+
+  if (format === ExportFormat.Archive) {
+    return '.zip';
+  }
   return;
 }
 

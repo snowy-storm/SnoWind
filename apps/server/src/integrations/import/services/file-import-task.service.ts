@@ -42,6 +42,7 @@ import {
   IAuditService,
 } from '../../../integrations/audit/audit.service';
 import { ConfluenceImportService } from '../../../ee/confluence-import/confluence-import.service';
+import { SnowindArchiveImportService } from './snowind-archive-import.service';
 
 @Injectable()
 export class FileImportTaskService {
@@ -55,6 +56,7 @@ export class FileImportTaskService {
     @InjectKysely() private readonly db: KyselyDB,
     private readonly importAttachmentService: ImportAttachmentService,
     private readonly confluenceImportService: ConfluenceImportService,
+    private readonly snowindArchiveImportService: SnowindArchiveImportService,
     private eventEmitter: EventEmitter2,
     @Inject(AUDIT_SERVICE) private readonly auditService: IAuditService,
   ) {}
@@ -105,17 +107,32 @@ export class FileImportTaskService {
     }
 
     try {
-      if (
+      // Auto-detect native SnoWind archive regardless of declared source
+      const archiveManifest =
+        await this.snowindArchiveImportService.tryReadManifest(tmpExtractDir);
+
+      if (archiveManifest) {
+        await this.snowindArchiveImportService.processArchiveImport({
+          extractDir: tmpExtractDir,
+          fileTask,
+          manifest: archiveManifest,
+        });
+      } else if (
         fileTask.source === FileImportSource.Generic ||
-        fileTask.source === FileImportSource.Notion
+        fileTask.source === FileImportSource.Notion ||
+        // User picked "SnoWind archive" but uploaded HTML/MD zip — fall back
+        fileTask.source === FileImportSource.SnowindArchive
       ) {
+        if (fileTask.source === FileImportSource.SnowindArchive) {
+          this.logger.warn(
+            `Import source was snowind-archive but manifest.json was missing; falling back to generic HTML/MD import. File task: ${fileTaskId}`,
+          );
+        }
         await this.processGenericImport({
           extractDir: tmpExtractDir,
           fileTask,
         });
-      }
-
-      if (fileTask.source === FileImportSource.Confluence) {
+      } else if (fileTask.source === FileImportSource.Confluence) {
         await this.confluenceImportService.processConfluenceImport({
           extractDir: tmpExtractDir,
           fileTask,
