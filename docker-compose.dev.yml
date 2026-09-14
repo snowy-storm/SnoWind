@@ -7,6 +7,7 @@
 #
 # Host ports: Postgres 5444, Redis 2817, Typesense 8109
 # OnlyOffice (optional, large image): pnpm infra:office  →  127.0.0.1:8088
+# Draw.io (optional): pnpm infra:drawio  →  127.0.0.1:8089
 # App on host (`pnpm dev`): frontend 5173, backend 3010.
 
 name: snowind-dev
@@ -121,6 +122,24 @@ services:
     volumes:
       - snowind_dev_onlyoffice_data:/var/www/onlyoffice/Data
       - snowind_dev_onlyoffice_lib:/var/lib/onlyoffice
+
+  # Self-hosted Draw.io for air-gapped editing (intranet branch).
+  # Start: docker compose -f docker-compose.dev.yml --profile drawio up -d drawio
+  # Or:    pnpm infra:drawio
+  drawio:
+    profiles: ["drawio"]
+    image: jgraph/drawio:latest
+    container_name: snowind-dev-drawio
+    pull_policy: missing
+    environment:
+      DRAWIO_USE_HTTP: "1"
+      DRAWIO_SERVER_URL: "http://127.0.0.1:8089/"
+      DRAWIO_BASE_URL: "http://127.0.0.1:8089"
+    ports:
+      - "127.0.0.1:8089:8080"
+    restart: unless-stopped
+    networks:
+      - snowind-dev
 
 networks:
   snowind-dev:

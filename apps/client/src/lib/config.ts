@@ -84,11 +84,12 @@ export function getFileImportSizeLimit() {
   return bytes(limit);
 }
 
-const DEFAULT_DRAWIO_URL = "https://embed.diagrams.net";
+const DEFAULT_DRAWIO_URL = "http://localhost:8089";
 
 export function getDrawioUrl() {
   // Empty DRAWIO_URL (common in .env) must not be passed through:
   // react-drawio does `new URL(baseUrl)` and throws on "".
+  // Intranet build defaults to the self-hosted Draw.io container (port 8089).
   return getConfigValue("DRAWIO_URL", DEFAULT_DRAWIO_URL) || DEFAULT_DRAWIO_URL;
 }
 

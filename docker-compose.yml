@@ -1,5 +1,11 @@
 # =============================================================================
-# SnoWind v0.1.6 — 仅需本文件即可部署（无需克隆源码、无需单独 .env）
+# SnoWind v0.1.6 — 内网版（intranet / air-gap）
+# 仅需本文件即可部署（无需克隆源码、无需单独 .env）
+#
+# 相对公网版差异：
+#   - 自带 Draw.io（jgraph/drawio），默认 DRAWIO_URL=http://localhost:8089
+#   - 已移除 Loom / Airtable / Figma / YouTube 等公网嵌入斜杠插件
+#   - 仅保留通用 Iframe（可嵌内网站点）
 #
 # 安装者只需：
 #   1. 把本文件放到一个空文件夹里
@@ -8,8 +14,10 @@
 #
 # 浏览器打开：http://本机或服务器IP:3000
 # OnlyOffice（Office 预览/编辑）：http://本机或服务器IP:8080
+# Draw.io（流程图编辑器）：http://本机或服务器IP:8089
 #
-# 首次启动会下载镜像，OnlyOffice 体积较大，请耐心等待。
+# 首次启动会下载镜像，OnlyOffice / Draw.io 体积较大，请耐心等待。
+# 完全断网环境请预先 docker pull / docker load 全部镜像。
 # =============================================================================
 
 name: snowind
@@ -25,6 +33,8 @@ services:
       typesense:
         condition: service_started
       onlyoffice:
+        condition: service_started
+      drawio:
         condition: service_started
     environment:
       # 浏览器访问地址。本机试用保持 localhost；
@@ -58,6 +68,10 @@ services:
       ONLYOFFICE_JWT_SECRET: "ChangeMeOnlyOfficeJwtSecret32chars"
       # 容器之间互访，一般不用改
       ONLYOFFICE_APP_URL: "http://snowind:3000"
+
+      # 浏览器访问自托管 Draw.io 的地址。远程访问时改成 http://服务器IP:8089
+      # 须与下方 drawio 服务的宿主机端口一致（本文件默认 8089）
+      DRAWIO_URL: "http://localhost:8089"
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -127,6 +141,20 @@ services:
       - onlyoffice_data:/var/www/onlyoffice/Data
       - onlyoffice_lib:/var/lib/onlyoffice
       - onlyoffice_logs:/var/log/onlyoffice
+
+  # Self-hosted diagrams.net for air-gapped Draw.io editing (no embed.diagrams.net).
+  # Browser must reach this URL (same host rule as ONLYOFFICE_URL / DRAWIO_URL).
+  drawio:
+    image: jgraph/drawio:latest
+    environment:
+      # Allow HTTP intranet deployments (no TLS).
+      DRAWIO_USE_HTTP: "1"
+      # Public URL the browser uses; keep trailing slash. Change with DRAWIO_URL above.
+      DRAWIO_SERVER_URL: "http://localhost:8089/"
+      DRAWIO_BASE_URL: "http://localhost:8089"
+    ports:
+      - "8089:8080"
+    restart: unless-stopped
 
 volumes:
   snowind_data:

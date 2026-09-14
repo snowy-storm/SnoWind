@@ -2,11 +2,13 @@
   <h1><b>SnoWind</b></h1>
   <p>
     开源协作 Wiki / 知识库。<br />
-    当前发行版 <strong>v0.1.6</strong>
+    当前发行版 <strong>v0.1.6</strong>（内网 / 空气网分支 <code>intranet/airgap</code>）
   </p>
 </div>
 
-推荐用 **Docker Compose** 安装。安装者不需要克隆本仓库，也不需要准备 `.env`：只要有一份 `docker-compose.yml`，即可在 Linux 或 Windows 上启动全部服务（应用、PostgreSQL、Redis、Typesense、OnlyOffice）。
+推荐用 **Docker Compose** 安装。安装者不需要克隆本仓库，也不需要准备 `.env`：只要有一份 `docker-compose.yml`，即可在 Linux 或 Windows 上启动全部服务（应用、PostgreSQL、Redis、Typesense、OnlyOffice、**自托管 Draw.io**）。
+
+> **内网版说明**：本分支去掉了 Loom / Airtable / Figma / Typeform / Miro / YouTube / Vimeo / Framer / Google Drive·Sheets 等公网嵌入斜杠插件；仅保留通用 Iframe（可嵌内网站点）。Draw.io 默认走 compose 内的 `jgraph/drawio`（端口 **8089**），不再访问 `embed.diagrams.net`。
 
 仓库：<https://github.com/snowy-storm/SnoWind>
 
@@ -22,7 +24,7 @@
 - Base 数据表：自定义序号、标题属性、页面字段与行展开、复制页面带表数据、Excel 导出可读展示、空单元格筛选
 - 空间完整归档导出/导入（忠实往返）
 - 文档导出 Word（中文公文页边距、字体字号、标题编号与表格样式）
-- 嵌入（Airtable、Loom、Miro 等）
+- 自托管 Draw.io（空气网可用）；通用 Iframe（内网 URL）
 - 多语言（10+）
 
 ---
@@ -41,7 +43,7 @@
 
 - SnoWind 应用 + PostgreSQL + Redis + Typesense 合计大约占用 **1.5～2.5 GB** 内存。
 - OnlyOffice Document Server 官方建议单独预留约 **2 GB** 内存；这是 4 GB 机器会吃紧的原因。
-- 需要公网或局域网访问时，请放行 **3000**（网站）和 **8080**（OnlyOffice）端口。
+- 需要公网或局域网访问时，请放行 **3000**（网站）、**8080**（OnlyOffice）、**8089**（Draw.io）端口。
 - 健康检查：`http://你的地址:3000/api/health`
 
 ---
@@ -149,6 +151,7 @@ docker compose logs -f snowind
 | `TYPESENSE_API_KEY` 与 typesense 的 `--api-key` | 搜索密钥 | **两处必须完全相同** |
 | `ONLYOFFICE_JWT_SECRET` 与 onlyoffice 的 `JWT_SECRET` | Office 编辑密钥 | **两处必须完全相同，至少 32 字符** |
 | `ONLYOFFICE_URL` | 浏览器访问 Document Server 的地址 | 远程访问时改为 `http://服务器IP:8080` |
+| `DRAWIO_URL` 与 drawio 的 `DRAWIO_SERVER_URL` / `DRAWIO_BASE_URL` | 浏览器访问自托管 Draw.io | 远程访问时三处一并改为 `http://服务器IP:8089`（`DRAWIO_SERVER_URL` 末尾保留 `/`） |
 
 改完后若容器已在运行：
 
@@ -169,6 +172,7 @@ Compose 会按新环境变量重建需要的容器。
 - `ghcr.io/snowy-storm/snowind:0.1.6`（SnoWind 应用）
 - PostgreSQL、Redis、Typesense
 - `onlyoffice/documentserver`（体积较大）
+- `jgraph/drawio`（自托管 Draw.io，空气网编辑用）
 
 全部变为 `running` / `healthy` 后，打开 `APP_URL` 完成初始化。你将成为工作区所有者，再邀请其他人。
 
@@ -257,7 +261,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-研发：前端 `5173`、后端 `3010`、OnlyOffice `8088`。`pnpm infra:down` 只停研发栈。
+研发：前端 `5173`、后端 `3010`、OnlyOffice `8088`（`pnpm infra:office`）、Draw.io `8089`（`pnpm infra:drawio`）。`.env.dev` 中设置 `DRAWIO_URL=http://127.0.0.1:8089`。`pnpm infra:down` 只停研发栈。
 
 ---
 

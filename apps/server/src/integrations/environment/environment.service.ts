@@ -202,7 +202,7 @@ export class EnvironmentService {
   getDrawioUrl(): string {
     return (
       this.configService.get<string>('DRAWIO_URL') ||
-      'https://embed.diagrams.net'
+      'http://localhost:8089'
     );
   }
 

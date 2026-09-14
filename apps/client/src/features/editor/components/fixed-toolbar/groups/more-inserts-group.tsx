@@ -19,7 +19,6 @@ import {
 import IconExcalidraw from "@/components/icons/icon-excalidraw";
 import IconMermaid from "@/components/icons/icon-mermaid";
 import IconDrawio from "@/components/icons/icon-drawio";
-import { FigmaIcon } from "@/components/icons";
 import { useTranslation } from "react-i18next";
 import { insertBaseEmbedBlock } from "@/features/editor/components/base-embed/insert-base-embed";
 import { useHasFeature } from "@/ee/hooks/use-feature";
@@ -184,12 +183,6 @@ export const MoreInsertsGroup: FC<Props> = ({ editor, templateMode }) => {
           onClick={() => setEmbed("iframe")}
         >
           Iframe
-        </Menu.Item>
-        <Menu.Item
-          leftSection={<FigmaIcon size={16} />}
-          onClick={() => setEmbed("figma")}
-        >
-          Figma
         </Menu.Item>
 
         <Menu.Divider />
