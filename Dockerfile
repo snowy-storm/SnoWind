@@ -49,6 +49,8 @@ COPY --from=builder /app/packages/base-formula/package.json /app/packages/base-f
 # Copy root package files
 COPY --from=builder /app/package.json /app/package.json
 COPY --from=builder /app/pnpm*.yaml /app/
+# Keep registry for any future pnpm use; do not rely on pnpm at container start
+COPY --from=builder /app/.npmrc /app/.npmrc
 
 # Copy patches
 COPY --from=builder /app/patches /app/patches
@@ -68,5 +70,8 @@ VOLUME ["/app/data/storage"]
 
 EXPOSE 3000
 
-CMD ["pnpm", "start"]
+# Direct node entry: avoid pnpm start (skips install / supply-chain checks at boot)
+ENV NODE_ENV=production
+WORKDIR /app/apps/server
+CMD ["node", "dist/main"]
 

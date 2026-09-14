@@ -1,5 +1,5 @@
 # =============================================================================
-# SnoWind v0.1.7 — 内网版（intranet / air-gap）
+# SnoWind v0.1.8 — 内网版（intranet / air-gap）
 # 仅需本文件即可部署（无需克隆源码、无需单独 .env）
 #
 # 相对公网版差异：
@@ -25,7 +25,7 @@ name: snowind
 
 services:
   snowind:
-    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/snowind:0.1.7
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/snowind:0.1.8
     depends_on:
       db:
         condition: service_healthy
