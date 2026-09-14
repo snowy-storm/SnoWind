@@ -146,7 +146,7 @@ services:
   # Self-hosted diagrams.net for air-gapped Draw.io editing (no embed.diagrams.net).
   # Browser must reach this URL (same host rule as ONLYOFFICE_URL / DRAWIO_URL).
   drawio:
-    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/drawio:latest
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/drawio:30.1.13
     environment:
       # Allow HTTP intranet deployments (no TLS).
       DRAWIO_USE_HTTP: "1"

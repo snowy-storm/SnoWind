@@ -8,7 +8,7 @@
 
 推荐用 **Docker Compose** 安装。安装者不需要克隆本仓库，也不需要准备 `.env`：只要有一份 `docker-compose.yml`，即可在 Linux 或 Windows 上启动全部服务（应用、PostgreSQL、Redis、Typesense、OnlyOffice、**自托管 Draw.io**）。
 
-> **内网版说明**：本分支去掉了 Loom / Airtable / Figma / Typeform / Miro / YouTube / Vimeo / Framer / Google Drive·Sheets 等公网嵌入斜杠插件；仅保留通用 Iframe（可嵌内网站点）。Draw.io 默认走 compose 内自托管服务（阿里云镜像 `…/drawio:latest`，端口 **8089**），不再访问 `embed.diagrams.net`。全部依赖镜像均托管在阿里云 ACR。
+> **内网版说明**：本分支去掉了 Loom / Airtable / Figma / Typeform / Miro / YouTube / Vimeo / Framer / Google Drive·Sheets 等公网嵌入斜杠插件；仅保留通用 Iframe（可嵌内网站点）。Draw.io 默认走 compose 内自托管服务（阿里云镜像 `…/drawio:30.1.13`，端口 **8089**），不再访问 `embed.diagrams.net`。全部依赖镜像均托管在阿里云 ACR。
 
 仓库：<https://github.com/snowy-storm/SnoWind>
 
@@ -173,7 +173,7 @@ Compose 会按新环境变量重建需要的容器。
 - `…/snowind0102/postgres:16-alpine`、`…/redis:7.2-alpine`
 - `…/typesense/typesense:30.1`
 - `…/snowind0102/onlyoffice-documentserver:8.3`（体积较大）
-- `…/snowind0102/drawio:latest`（自托管 Draw.io）
+- `…/snowind0102/drawio:30.1.13`（自托管 Draw.io）
 
 全部变为 `running` / `healthy` 后，打开 `APP_URL` 完成初始化。你将成为工作区所有者，再邀请其他人。
 

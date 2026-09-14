@@ -128,7 +128,7 @@ services:
   # Or:    pnpm infra:drawio
   drawio:
     profiles: ["drawio"]
-    image: jgraph/drawio:latest
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/drawio:30.1.13
     container_name: snowind-dev-drawio
     pull_policy: missing
     environment:
