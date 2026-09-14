@@ -2,13 +2,13 @@
   <h1><b>SnoWind</b></h1>
   <p>
     开源协作 Wiki / 知识库。<br />
-    当前发行版 <strong>v0.1.6</strong>（内网 / 空气网分支 <code>intranet/airgap</code>）
+    当前发行版 <strong>v0.1.7</strong>（内网 / 空气网分支 <code>intranet/airgap</code>）
   </p>
 </div>
 
 推荐用 **Docker Compose** 安装。安装者不需要克隆本仓库，也不需要准备 `.env`：只要有一份 `docker-compose.yml`，即可在 Linux 或 Windows 上启动全部服务（应用、PostgreSQL、Redis、Typesense、OnlyOffice、**自托管 Draw.io**）。
 
-> **内网版说明**：本分支去掉了 Loom / Airtable / Figma / Typeform / Miro / YouTube / Vimeo / Framer / Google Drive·Sheets 等公网嵌入斜杠插件；仅保留通用 Iframe（可嵌内网站点）。Draw.io 默认走 compose 内的 `jgraph/drawio`（端口 **8089**），不再访问 `embed.diagrams.net`。
+> **内网版说明**：本分支去掉了 Loom / Airtable / Figma / Typeform / Miro / YouTube / Vimeo / Framer / Google Drive·Sheets 等公网嵌入斜杠插件；仅保留通用 Iframe（可嵌内网站点）。Draw.io 默认走 compose 内自托管服务（阿里云镜像 `…/drawio:latest`，端口 **8089**），不再访问 `embed.diagrams.net`。全部依赖镜像均托管在阿里云 ACR。
 
 仓库：<https://github.com/snowy-storm/SnoWind>
 
@@ -85,7 +85,7 @@ sudo usermod -aG docker "$USER"
 ```shell
 mkdir snowind
 cd snowind
-curl -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.6/docker-compose.yml
+curl -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.7/docker-compose.yml
 ```
 
 打开文件看第一行：应是以 `#` 开头的 SnoWind 说明。**如果整篇只有 `404: Not Found`，说明下载失败，删掉后重试。** 用编辑器（例如 `nano docker-compose.yml`）按下一节修改密钥和访问地址。保存后：
@@ -113,12 +113,12 @@ docker compose logs -f snowind
 New-Item -ItemType Directory -Force -Path .\snowind | Out-Null
 Set-Location .\snowind
 if (Test-Path .\docker-compose.yml) { Remove-Item .\docker-compose.yml -Force }
-curl.exe -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.6/docker-compose.yml
+curl.exe -fL -o docker-compose.yml https://raw.githubusercontent.com/snowy-storm/SnoWind/v0.1.7/docker-compose.yml
 Get-Content .\docker-compose.yml -TotalCount 5
 ```
 
 前几行必须是 SnoWind 的注释（以 `#` 开头），**不能**是 `404: Not Found`。若仍是 404，也可从发行页下载同一文件：  
-https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.6  
+https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.7  
 
 用记事本打开 `docker-compose.yml`，按下一节修改密钥和访问地址。保存后，**仍在该文件夹中**执行：
 
@@ -167,12 +167,13 @@ Compose 会按新环境变量重建需要的容器。
 
 ## 启动之后
 
-首次 `docker compose up -d` 会拉取：
+首次 `docker compose up -d` 会拉取（全部为阿里云 ACR）：
 
-- `ghcr.io/snowy-storm/snowind:0.1.6`（SnoWind 应用）
-- PostgreSQL、Redis、Typesense
-- `onlyoffice/documentserver`（体积较大）
-- `jgraph/drawio`（自托管 Draw.io，空气网编辑用）
+- `…/snowind0102/snowind:0.1.7`（SnoWind 应用，内网版）
+- `…/snowind0102/postgres:16-alpine`、`…/redis:7.2-alpine`
+- `…/typesense/typesense:30.1`
+- `…/snowind0102/onlyoffice-documentserver:8.3`（体积较大）
+- `…/snowind0102/drawio:latest`（自托管 Draw.io）
 
 全部变为 `running` / `healthy` 后，打开 `APP_URL` 完成初始化。你将成为工作区所有者，再邀请其他人。
 
@@ -214,13 +215,13 @@ docker compose down -v          # 停止并删除数据（不可恢复，慎用�
 
 ## 下载到的 docker-compose.yml 只有 404
 
-仓库曾是私有时，未登录访问 `raw.githubusercontent.com` 会返回正文 `404: Not Found`，PowerShell 会把它保存成文件。请删掉后用上面带 `-fL` 的命令重下（仓库现已公开）。也可浏览器打开 [v0.1.6 发行页](https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.6) 下载 `docker-compose.yml`。
+仓库曾是私有时，未登录访问 `raw.githubusercontent.com` 会返回正文 `404: Not Found`，PowerShell 会把它保存成文件。请删掉后用上面带 `-fL` 的命令重下（仓库现已公开）。也可浏览器打开 [v0.1.7 发行页](https://github.com/snowy-storm/SnoWind/releases/tag/v0.1.7) 下载 `docker-compose.yml`。
 
 ---
 
 ## 镜像拉取失败时（unauthorized）
 
-`docker compose up` 若报 `error from registry: unauthorized`，是在拉 `ghcr.io/snowy-storm/snowind:0.1.6`。仓库公开不等于容器包公开，GitHub Packages 默认仍是 **Private**。
+`docker compose up` 若报 `error from registry: unauthorized`，是在拉 `crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/snowind:0.1.7`。仓库公开不等于容器包公开，GitHub Packages 默认仍是 **Private**。
 
 仓库所有者请打开：  
 https://github.com/users/snowy-storm/packages/container/package/snowind  
@@ -243,7 +244,7 @@ docker compose up -d
 从本仓库源码自行构建（开发者）：
 
 ```shell
-docker build -t ghcr.io/snowy-storm/snowind:0.1.6 .
+docker build -t crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/snowind:0.1.7 .
 ```
 
 中国大陆构建可将 Dockerfile 中的 npm 源换成 npmmirror（见 Dockerfile 的 `NPM_REGISTRY` 参数）。

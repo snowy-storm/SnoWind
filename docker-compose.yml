@@ -1,11 +1,12 @@
 # =============================================================================
-# SnoWind v0.1.6 — 内网版（intranet / air-gap）
+# SnoWind v0.1.7 — 内网版（intranet / air-gap）
 # 仅需本文件即可部署（无需克隆源码、无需单独 .env）
 #
 # 相对公网版差异：
-#   - 自带 Draw.io（jgraph/drawio），默认 DRAWIO_URL=http://localhost:8089
+#   - 自带 Draw.io（阿里云备份镜像），默认 DRAWIO_URL=http://localhost:8089
 #   - 已移除 Loom / Airtable / Figma / YouTube 等公网嵌入斜杠插件
 #   - 仅保留通用 Iframe（可嵌内网站点）
+#   - 全部镜像均来自阿里云 ACR（北京），便于断网/国内拉取
 #
 # 安装者只需：
 #   1. 把本文件放到一个空文件夹里
@@ -24,7 +25,7 @@ name: snowind
 
 services:
   snowind:
-    image: ghcr.io/snowy-storm/snowind:0.1.6
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/snowind:0.1.7
     depends_on:
       db:
         condition: service_healthy
@@ -85,7 +86,7 @@ services:
       - snowind_data:/app/data/storage
 
   db:
-    image: postgres:16-alpine
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/postgres:16-alpine
     environment:
       POSTGRES_DB: snowind
       POSTGRES_USER: snowind
@@ -101,7 +102,7 @@ services:
       - db_data:/var/lib/postgresql/data
 
   redis:
-    image: redis:7.2-alpine
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/redis:7.2-alpine
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -113,7 +114,7 @@ services:
       - redis_data:/data
 
   typesense:
-    image: typesense/typesense:27.1
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/typesense/typesense:30.1
     command:
       - "--data-dir"
       - "/data"
@@ -125,7 +126,7 @@ services:
       - typesense_data:/data
 
   onlyoffice:
-    image: onlyoffice/documentserver:8.3
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/onlyoffice-documentserver:8.3
     environment:
       JWT_ENABLED: "true"
       JWT_SECRET: ChangeMeOnlyOfficeJwtSecret32chars
@@ -145,7 +146,7 @@ services:
   # Self-hosted diagrams.net for air-gapped Draw.io editing (no embed.diagrams.net).
   # Browser must reach this URL (same host rule as ONLYOFFICE_URL / DRAWIO_URL).
   drawio:
-    image: jgraph/drawio:latest
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/drawio:latest
     environment:
       # Allow HTTP intranet deployments (no TLS).
       DRAWIO_USE_HTTP: "1"
