@@ -130,7 +130,12 @@ export class BaseService {
     });
   }
 
-  async getBaseInfo(pageId: string, workspaceId: string, user: User) {
+  async getBaseInfo(
+    pageId: string,
+    workspaceId: string,
+    user: User,
+    permissions?: { canEdit: boolean; hasRestriction: boolean },
+  ) {
     await this.assertPageWorkspace(pageId, workspaceId);
     const [page, properties, views] = await Promise.all([
       this.pageRepo.findById(pageId),
@@ -138,7 +143,13 @@ export class BaseService {
       this.baseViewRepo.findByPageId(pageId),
     ]);
 
-    return this.assembleBaseResponse(page, properties, views, user);
+    return this.assembleBaseResponse(
+      page,
+      properties,
+      views,
+      user,
+      permissions,
+    );
   }
 
   private assembleBaseResponse(
@@ -146,6 +157,7 @@ export class BaseService {
     properties: BaseProperty[],
     views: BaseView[],
     user?: User,
+    permissions?: { canEdit: boolean; hasRestriction: boolean },
   ) {
     return {
       id: page.id,
@@ -164,9 +176,11 @@ export class BaseService {
       createdAt: page.createdAt,
       updatedAt: page.updatedAt,
       baseSchemaVersion: page.baseSchemaVersion ?? 0,
-      permissions: user
-        ? { canEdit: true, hasRestriction: false }
-        : undefined,
+      permissions: permissions
+        ? permissions
+        : user
+          ? { canEdit: true, hasRestriction: false }
+          : undefined,
     };
   }
 

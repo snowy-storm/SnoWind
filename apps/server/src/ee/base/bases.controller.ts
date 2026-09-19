@@ -55,6 +55,7 @@ import { PageRepo } from '@snowind/db/repos/page/page.repo';
 import { User, Workspace } from '@snowind/db/types/entity.types';
 import { PaginationOptions } from '@snowind/db/pagination/pagination-options';
 import { sanitizeFileName } from '../../common/helpers';
+import { PageAccessService } from '../../core/page/page-access/page-access.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('bases')
@@ -65,6 +66,7 @@ export class BasesController {
     private readonly baseService: BaseService,
     private readonly spaceAbility: SpaceAbilityFactory,
     private readonly pageRepo: PageRepo,
+    private readonly pageAccessService: PageAccessService,
   ) {}
 
   private async readTableUpload(req: any) {
@@ -101,22 +103,22 @@ export class BasesController {
     return { file, buffer, fileName: fileName || 'table', ext };
   }
 
-  private async assertCanEditSpaceByPage(pageId: string, user: User) {
-    const page = await this.pageRepo.findById(pageId, { includeSpace: true });
+  private async loadPage(pageId: string) {
+    const page = await this.pageRepo.findById(pageId);
     if (!page) throw new BadRequestException('Page not found');
-    const ability = await this.spaceAbility.createForUser(
-      user,
-      page.spaceId,
-    );
-    if (
-      !ability.can(
-        SpaceCaslAction.Manage,
-        SpaceCaslSubject.Settings,
-      ) && !ability.can(SpaceCaslAction.Manage, SpaceCaslSubject.Page)
-    ) {
-      throw new ForbiddenException('Insufficient space permissions');
-    }
     return page;
+  }
+
+  /** Page view permission is enough to read base schema and rows. */
+  private async assertCanViewPage(pageId: string, user: User) {
+    const page = await this.loadPage(pageId);
+    return this.pageAccessService.validateCanViewWithPermissions(page, user);
+  }
+
+  /** Page edit permission is required to mutate base schema or rows. */
+  private async assertCanEditPage(pageId: string, user: User) {
+    const page = await this.loadPage(pageId);
+    await this.pageAccessService.validateCanEdit(page, user);
   }
 
   @HttpCode(HttpStatus.OK)
@@ -143,8 +145,13 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
-    return this.baseService.getBaseInfo(dto.pageId, workspace.id, user);
+    const permissions = await this.assertCanViewPage(dto.pageId, user);
+    return this.baseService.getBaseInfo(
+      dto.pageId,
+      workspace.id,
+      user,
+      permissions,
+    );
   }
 
   @HttpCode(HttpStatus.OK)
@@ -154,7 +161,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     return this.baseService.updateBase(dto, workspace.id, user);
   }
 
@@ -165,7 +172,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     await this.baseService.deleteBase(dto.pageId, workspace.id);
   }
 
@@ -176,7 +183,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     return this.baseService.convertPageToBase(
       dto.pageId,
       dto.template,
@@ -295,7 +302,7 @@ export class BasesController {
     @AuthWorkspace() workspace: Workspace,
     @Res() res: FastifyReply,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanViewPage(dto.pageId, user);
     const xlsx = await this.baseService.exportBaseToXlsx(
       dto.pageId,
       workspace.id,
@@ -354,7 +361,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     return this.baseService.createProperty(dto, workspace.id, user.id);
   }
 
@@ -365,7 +372,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     return this.baseService.updateProperty(dto, workspace.id);
   }
 
@@ -376,7 +383,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     await this.baseService.deleteProperty(dto, workspace.id);
   }
 
@@ -387,7 +394,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     await this.baseService.reorderProperty(dto, workspace.id);
   }
 
@@ -400,7 +407,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     return this.baseService.createRow(dto, workspace.id, user.id);
   }
 
@@ -411,7 +418,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanViewPage(dto.pageId, user);
     return this.baseService.getRowInfo(dto.rowId, dto.pageId, workspace.id);
   }
 
@@ -422,7 +429,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     return this.baseService.updateRow(dto, workspace.id, user.id);
   }
 
@@ -433,7 +440,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     await this.baseService.deleteRow(dto, workspace.id);
   }
 
@@ -444,7 +451,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     await this.baseService.deleteRows(dto, workspace.id);
   }
 
@@ -455,7 +462,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanViewPage(dto.pageId, user);
     const pagination: PaginationOptions = {
       cursor: dto.cursor,
       limit: dto.limit ?? 50,
@@ -473,7 +480,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     await this.baseService.reorderRow(dto, workspace.id);
   }
 
@@ -486,7 +493,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     return this.baseService.createView(dto, workspace.id, user.id);
   }
 
@@ -497,7 +504,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     return this.baseService.updateView(dto, workspace.id, user.id);
   }
 
@@ -508,7 +515,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanEditPage(dto.pageId, user);
     await this.baseService.deleteView(dto, workspace.id, user.id);
   }
 
@@ -519,7 +526,7 @@ export class BasesController {
     @AuthUser() user: User,
     @AuthWorkspace() workspace: Workspace,
   ) {
-    await this.assertCanEditSpaceByPage(dto.pageId, user);
+    await this.assertCanViewPage(dto.pageId, user);
     return this.baseService.listViews(dto.pageId, workspace.id, user.id);
   }
 }
