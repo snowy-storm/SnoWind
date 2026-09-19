@@ -1,6 +1,6 @@
 # =============================================================================
-# SnoWind v0.1.9 — 内网版（intranet / air-gap）
-# 应用镜像暂仍为阿里云 snowind:0.1.8（本版尚未同步 ACR）
+# SnoWind v0.1.10 — 内网版（intranet / air-gap）
+# 应用镜像：阿里云 snowind:0.1.10
 # 仅需本文件即可部署（无需克隆源码、无需单独 .env）
 #
 # 相对公网版差异：
@@ -26,7 +26,7 @@ name: snowind
 
 services:
   snowind:
-    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/snowind:0.1.8
+    image: crpi-bn9uffvao1i959pb.cn-beijing.personal.cr.aliyuncs.com/snowind0102/snowind:0.1.10
     depends_on:
       db:
         condition: service_healthy
