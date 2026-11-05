@@ -20,9 +20,24 @@ RUN pnpm build
 
 FROM base AS installer
 
+# Draw.io stores labels as SVG <text font-family="Helvetica">, including
+# Chinese. resvg draws shapes either way, but skips glyphs when that family
+# is missing, and it does not fall back per character. node:slim has no fonts.
+# Liberation covers English (regular, bold, italic). Noto CJK covers simplified
+# and traditional Chinese in sans and serif, plus Latin, so a Helvetica label
+# can contain both. AR PL UKai is the kai face. Aliases live in docker/fonts.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl bash \
+  && apt-get install -y --no-install-recommends \
+    curl \
+    bash \
+    fontconfig \
+    fonts-liberation \
+    fonts-noto-cjk \
+    fonts-noto-cjk-extra \
+    fonts-arphic-ukai \
   && rm -rf /var/lib/apt/lists/*
+COPY docker/fonts/99-snowind-aliases.conf /etc/fonts/conf.d/99-snowind-aliases.conf
+RUN fc-cache -f
 
 # drop npm and corepack
 RUN rm -rf /usr/local/lib/node_modules/npm \

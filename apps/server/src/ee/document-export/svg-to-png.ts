@@ -193,6 +193,8 @@ export async function svgToPng(svgBuffer: Uint8Array): Promise<Buffer> {
   const rendered = await renderAsync(svg, {
     fitTo: { mode: 'width', value: exportWidthForSvg(svg) },
     background: 'white',
+    // Helvetica (Draw.io's label font, including Chinese) is aliased to
+    // Noto Sans CJK SC in the production image. See docker/fonts.
     font: { loadSystemFonts: true },
   });
   return rendered.asPng();
