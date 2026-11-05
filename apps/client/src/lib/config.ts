@@ -80,7 +80,7 @@ export function getFileUploadSizeLimit() {
 }
 
 export function getFileImportSizeLimit() {
-  const limit = getConfigValue("FILE_IMPORT_SIZE_LIMIT", "300mb");
+  const limit = getConfigValue("FILE_IMPORT_SIZE_LIMIT", "1024mb");
   return bytes(limit);
 }
 

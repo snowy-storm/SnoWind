@@ -30,13 +30,16 @@ import {
 import { useTranslation } from "react-i18next";
 import { getFileUrl } from "@/lib/config.ts";
 import { uploadFile } from "@/features/page/services/page-service.ts";
-import { svgStringToFile } from "@/lib";
 import "@excalidraw/excalidraw/index.css";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { IAttachment } from "@/features/attachments/types/attachment.types";
 import { DrawingEditorModal } from "@/features/drawing/components/drawing-editor-modal";
 import { useHandleLibrary } from "@excalidraw/excalidraw";
-import { localStorageLibraryAdapter } from "@/features/editor/components/excalidraw/excalidraw-utils.ts";
+import {
+  EXCALIDRAW_PNG_FILE_NAME,
+  exportExcalidrawPngFile,
+  localStorageLibraryAdapter,
+} from "@/features/editor/components/excalidraw/excalidraw-utils.ts";
 import { useAltTextControl } from "@/features/editor/components/common/use-alt-text-control.tsx";
 import { lightboxRequestAtom } from "@/features/editor/atoms/editor-atoms";
 import classes from "../common/toolbar-menu.module.css";
@@ -201,27 +204,10 @@ export function ExcalidrawMenu({ editor }: EditorMenuProps) {
     setIsSaving(true);
 
     try {
-      const { exportToSvg } = await import("@excalidraw/excalidraw");
-
-      const svg = await exportToSvg({
-        elements: excalidrawAPI?.getSceneElements(),
-        appState: {
-          exportEmbedScene: true,
-          exportWithDarkMode: false,
-        },
-        files: excalidrawAPI?.getFiles(),
-      });
-
-      const serializer = new XMLSerializer();
-      let svgString = serializer.serializeToString(svg);
-
-      svgString = svgString.replace(
-        /https:\/\/unpkg\.com\/@excalidraw\/excalidraw@undefined/g,
-        "https://unpkg.com/@excalidraw/excalidraw@latest",
+      const excalidrawPngFile = await exportExcalidrawPngFile(
+        excalidrawAPI,
+        EXCALIDRAW_PNG_FILE_NAME,
       );
-
-      const fileName = "diagram.excalidraw.svg";
-      const excalidrawSvgFile = await svgStringToFile(svgString, fileName);
 
       // @ts-ignore
       const pageId = editor.storage?.pageId;
@@ -229,9 +215,9 @@ export function ExcalidrawMenu({ editor }: EditorMenuProps) {
 
       let attachment: IAttachment = null;
       if (attachmentId) {
-        attachment = await uploadFile(excalidrawSvgFile, pageId, attachmentId);
+        attachment = await uploadFile(excalidrawPngFile, pageId, attachmentId);
       } else {
-        attachment = await uploadFile(excalidrawSvgFile, pageId);
+        attachment = await uploadFile(excalidrawPngFile, pageId);
       }
 
       editor.commands.updateAttributes("excalidraw", {

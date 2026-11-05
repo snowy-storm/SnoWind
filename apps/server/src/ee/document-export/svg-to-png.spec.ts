@@ -95,4 +95,50 @@ describe('svgToPng', () => {
     expect(g).toBeLessThan(120);
     expect(b).toBeLessThan(120);
   });
+
+  it('resolves Draw.io CSS variable fills to the fallback color', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+      <rect x="10" y="10" width="80" height="80" fill="#000000" style="fill: var(--ge-adaptive-bg, #ffffff); stroke: #111111; stroke-width: 4"/>
+    </svg>`;
+    const [r, g, b] = await centerPixel(svg);
+    expect([r, g, b]).toEqual([255, 255, 255]);
+  });
+
+  it('rasterizes Excalidraw symbol images without cropping', async () => {
+    // 2x2 opaque red PNG
+    const redPng =
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEUlEQVR4nGP4z8DwnwGMgRQAH+4D/dJQfRoAAAAASUVORK5CYII=';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+      <defs>
+        <symbol id="shot">
+          <image href="data:image/png;base64,${redPng}" preserveAspectRatio="none" width="100%" height="100%"/>
+        </symbol>
+      </defs>
+      <use href="#shot" x="10" y="10" width="40" height="80"/>
+    </svg>`;
+
+    const prepared = prepareSvgForRaster(svg);
+    expect(prepared).toContain('viewBox="0 0 2 2"');
+    expect(prepared).toContain('width="2" height="2"');
+
+    const img = await renderAsync(prepared, {
+      fitTo: { mode: 'original' },
+      background: 'white',
+    });
+    const x = 30;
+    const y = 50;
+    const i = (y * img.width + x) * 4;
+    const px = img.pixels;
+    expect(px[i]).toBeGreaterThan(200);
+    expect(px[i + 1]).toBeLessThan(80);
+    expect(px[i + 2]).toBeLessThan(80);
+  });
+
+  it('scales large diagrams above the previous 1200px floor', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="100" viewBox="0 0 2000 100">
+      <rect x="0" y="0" width="2000" height="100" fill="#4C6EF5"/>
+    </svg>`;
+    const png = await svgToPng(Buffer.from(svg));
+    expect(png.readUInt32BE(16)).toBe(2000);
+  });
 });

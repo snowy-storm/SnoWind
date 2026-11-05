@@ -127,6 +127,25 @@ export class SpaceRepo {
       .executeTakeFirst();
   }
 
+  async updateWordExportSettings(
+    spaceId: string,
+    workspaceId: string,
+    style: unknown,
+    trx?: KyselyTransaction,
+  ) {
+    const db = dbOrTx(this.db, trx);
+    return db
+      .updateTable('spaces')
+      .set({
+        settings: sql`COALESCE(settings, '{}'::jsonb) || jsonb_build_object('wordExport', ${JSON.stringify(style)}::jsonb)`,
+        updatedAt: new Date(),
+      })
+      .where('id', '=', spaceId)
+      .where('workspaceId', '=', workspaceId)
+      .returningAll()
+      .executeTakeFirst();
+  }
+
   async updateCommentSettings(
     spaceId: string,
     workspaceId: string,

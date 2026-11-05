@@ -4,6 +4,7 @@ import {
   SpaceCaslSubject,
 } from "@/features/space/permissions/permissions.type.ts";
 import { ExportFormat } from "@/features/page/types/page.types.ts";
+import type { WordExportStyle } from "@snowind/editor-ext";
 
 export interface ISpaceSharingSettings {
   disabled?: boolean;
@@ -16,6 +17,7 @@ export interface ISpaceCommentsSettings {
 export interface ISpaceSettings {
   sharing?: ISpaceSharingSettings;
   comments?: ISpaceCommentsSettings;
+  wordExport?: WordExportStyle;
 }
 
 export interface ISpace {

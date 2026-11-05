@@ -289,6 +289,12 @@ export class DocxSerializerState {
   // not sure what this actually is, seems to be close for 8.5x11
   maxImageWidth = MAX_IMAGE_WIDTH;
 
+  /**
+   * When false, header rows do not repeat across pages.
+   * Undefined keeps the historical behavior (repeat header rows).
+   */
+  repeatTableHeader?: boolean;
+
   image(
     src: string,
     widthPercent = 70,
@@ -388,9 +394,14 @@ export class DocxSerializerState {
         );
       });
       if (cells.length > 0) {
-        rows.push(new TableRow({ ...(getRowOptions?.(row) || {}), children: cells, tableHeader }));
+        rows.push(new TableRow({
+          ...(getRowOptions?.(row) || {}),
+          children: cells,
+          tableHeader: tableHeader && this.repeatTableHeader !== false,
+        }));
       }
     });
+    this.repeatTableHeader = undefined;
     this.maxImageWidth = MAX_IMAGE_WIDTH;
     if (rows.length === 0) {
       this.children = actualChildren;
@@ -739,6 +750,12 @@ export class DocxSerializerStateAsync {
   // not sure what this actually is, seems to be close for 8.5x11
   maxImageWidth = MAX_IMAGE_WIDTH;
 
+  /**
+   * When false, header rows do not repeat across pages.
+   * Undefined keeps the historical behavior (repeat header rows).
+   */
+  repeatTableHeader?: boolean;
+
   async image(
     src: string,
     widthPercent = 70,
@@ -848,10 +865,15 @@ export class DocxSerializerStateAsync {
       }
 
       if (cells.length > 0) {
-        rows.push(new TableRow({ ...(getRowOptions?.(row) || {}), children: cells, tableHeader }));
+        rows.push(new TableRow({
+          ...(getRowOptions?.(row) || {}),
+          children: cells,
+          tableHeader: tableHeader && this.repeatTableHeader !== false,
+        }));
       }
     }
 
+    this.repeatTableHeader = undefined;
     this.maxImageWidth = MAX_IMAGE_WIDTH;
     if (rows.length === 0) {
       this.children = actualChildren;

@@ -30,6 +30,8 @@ import { useTranslation } from "react-i18next";
 import { getDrawioUrl, getFileUrl } from "@/lib/config.ts";
 import {
   DRAWIO_EDITOR_CONFIGURATION,
+  DRAWIO_EXPORT_OPTIONS,
+  DRAWIO_PNG_FILE_NAME,
   getDrawioUrlParameters,
 } from "@/features/editor/components/drawio/drawio-embed-options";
 import { uploadFile } from "@/features/page/services/page-service.ts";
@@ -40,7 +42,7 @@ import {
   EventExport,
   EventSave,
 } from "react-drawio";
-import { decodeBase64ToSvgString, svgStringToFile } from "@/lib/utils";
+import { dataUrlToFile } from "@/lib/utils";
 import { IAttachment } from "@/features/attachments/types/attachment.types";
 import { modals } from "@mantine/modals";
 import { DrawingEditorModal } from "@/features/drawing/components/drawing-editor-modal";
@@ -57,6 +59,7 @@ export function DrawioMenu({ editor }: EditorMenuProps) {
   const computedColorScheme = useComputedColorScheme();
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
+  const pendingExitRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -160,16 +163,14 @@ export function DrawioMenu({ editor }: EditorMenuProps) {
     currentAlt: editorState?.alt || "",
   });
 
-  const saveData = useCallback(async (svgXml: string) => {
+  const saveData = useCallback(async (dataUrl: string) => {
     if (isSavingRef.current) return;
 
     isSavingRef.current = true;
     setIsSaving(true);
 
     try {
-      const svgString = decodeBase64ToSvgString(svgXml);
-      const fileName = "diagram.drawio.svg";
-      const drawioSVGFile = await svgStringToFile(svgString, fileName);
+      const drawioPngFile = await dataUrlToFile(dataUrl, DRAWIO_PNG_FILE_NAME);
 
       // @ts-ignore
       const pageId = editor.storage?.pageId;
@@ -177,9 +178,9 @@ export function DrawioMenu({ editor }: EditorMenuProps) {
 
       let attachment: IAttachment = null;
       if (attachmentId) {
-        attachment = await uploadFile(drawioSVGFile, pageId, attachmentId);
+        attachment = await uploadFile(drawioPngFile, pageId, attachmentId);
       } else {
-        attachment = await uploadFile(drawioSVGFile, pageId);
+        attachment = await uploadFile(drawioPngFile, pageId);
       }
 
       editor.commands.updateAttributes("drawio", {
@@ -252,7 +253,7 @@ export function DrawioMenu({ editor }: EditorMenuProps) {
 
     const interval = setInterval(() => {
       if (isDirtyRef.current && !isSavingRef.current && drawioRef.current) {
-        drawioRef.current.exportDiagram({ format: "xmlsvg" });
+        drawioRef.current.exportDiagram({ ...DRAWIO_EXPORT_OPTIONS });
       }
     }, 60_000);
 
@@ -407,13 +408,15 @@ export function DrawioMenu({ editor }: EditorMenuProps) {
           xml={initialXML}
           baseUrl={getDrawioUrl() || undefined}
           autosave
+          exportFormat="xmlpng"
           configuration={DRAWIO_EDITOR_CONFIGURATION}
           urlParameters={getDrawioUrlParameters(computedColorScheme, true)}
           onSave={(data: EventSave) => {
             if (data.parentEvent !== "save") {
               return;
             }
-            saveData(data.xml).then(() => close()).catch(() => {});
+            pendingExitRef.current = true;
+            drawioRef.current?.exportDiagram({ ...DRAWIO_EXPORT_OPTIONS });
           }}
           onClose={(data: EventExit) => {
             if (data.parentEvent) {
@@ -425,7 +428,16 @@ export function DrawioMenu({ editor }: EditorMenuProps) {
             isDirtyRef.current = true;
           }}
           onExport={(data: EventExport) => {
-            saveData(data.data).catch(() => {});
+            saveData(data.data)
+              .then(() => {
+                if (pendingExitRef.current) {
+                  pendingExitRef.current = false;
+                  close();
+                }
+              })
+              .catch(() => {
+                pendingExitRef.current = false;
+              });
           }}
         />
       </DrawingEditorModal>

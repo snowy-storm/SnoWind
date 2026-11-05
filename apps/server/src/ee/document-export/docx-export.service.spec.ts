@@ -246,9 +246,9 @@ describe('DocxExportService', () => {
 
     const zip = await JSZip.loadAsync(buffer);
     const documentXml = await zip.file('word/document.xml')!.async('string');
-    // A4 portrait: 210×297mm ≈ 11906×16838 twips
-    expect(documentXml).toMatch(/w:pgSz[^>]*w:w="11906"/);
-    expect(documentXml).toMatch(/w:pgSz[^>]*w:h="16838"/);
+    // A4 portrait from docx convertMillimetersToTwip: 210mm → 11905, 297mm → 16837.
+    expect(documentXml).toMatch(/w:pgSz[^>]*w:w="11905"/);
+    expect(documentXml).toMatch(/w:pgSz[^>]*w:h="16837"/);
     expect(documentXml).toMatch(/w:pgSz[^>]*w:orient="portrait"/);
     // 2.54cm top/bottom = 1440 twips; 3.18cm left/right ≈ 1802 twips
     expect(documentXml).toMatch(/w:pgMar[^>]*w:top="1440"/);
@@ -331,5 +331,64 @@ describe('DocxExportService', () => {
     expect(documentXml).toContain('Body Cell');
     expect(documentXml).not.toContain('Should not appear');
     expect(documentXml).toContain('D9D9D9');
+  });
+
+  it('keeps high-resolution diagram bytes when a saved style changes display width', async () => {
+    mockSvgAttachment();
+    const page = {
+      id: 'page-1',
+      title: 'Diagram',
+      spaceId: 'space-1',
+      workspaceId: 'workspace-1',
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'image',
+            attrs: { src: `/api/files/${DIAGRAM_ATTACHMENT_ID}/diagram.svg` },
+          },
+        ],
+      },
+    } as any;
+
+    const plain = new DocxExportService(
+      storageService as any,
+      attachmentRepo as any,
+    );
+    const plainBuffer = await plain.exportPageAsDocx(page);
+
+    const { standardWordExportStyle } = require('../../../../../packages/editor-ext/src/lib/prosemirror-docx/word-export-style');
+    const style = standardWordExportStyle();
+    style.imageStyle.maxWidth = '8cm';
+    style.bodyStyle.fontFamily = 'ClarityCheckFont';
+    const spaceRepo = {
+      findById: jest.fn().mockResolvedValue({ settings: { wordExport: style } }),
+    };
+    const styled = new DocxExportService(
+      storageService as any,
+      attachmentRepo as any,
+      spaceRepo as any,
+    );
+    const styledBuffer = await styled.exportPageAsDocx(page);
+
+    async function firstPng(buffer: Buffer) {
+      const zip = await JSZip.loadAsync(buffer);
+      const name = Object.keys(zip.files).find((file) => file.endsWith('.png'));
+      expect(name).toBeTruthy();
+      return zip.file(name!)!.async('nodebuffer');
+    }
+
+    const plainPng = await firstPng(plainBuffer);
+    const styledPng = await firstPng(styledBuffer);
+    expect(Buffer.compare(plainPng, styledPng)).toBe(0);
+    expect(plainPng.readUInt32BE(16)).toBeGreaterThanOrEqual(1200);
+
+    const styledZip = await JSZip.loadAsync(styledBuffer);
+    const stylesXml = await styledZip.file('word/styles.xml')!.async('string');
+    expect(stylesXml).toContain('ClarityCheckFont');
+    const plainZip = await JSZip.loadAsync(plainBuffer);
+    const plainStyles = await plainZip.file('word/styles.xml')!.async('string');
+    expect(plainStyles).not.toContain('ClarityCheckFont');
+    expect(spaceRepo.findById).toHaveBeenCalledWith('space-1', 'workspace-1');
   });
 });

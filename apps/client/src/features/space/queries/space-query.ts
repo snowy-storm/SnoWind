@@ -21,8 +21,10 @@ import {
   removeSpaceMember,
   createSpace,
   updateSpace,
+  updateWordExportStyle,
   deleteSpace,
 } from "@/features/space/services/space-service.ts";
+import type { WordExportStyle } from "@snowind/editor-ext";
 import { notifications } from "@mantine/notifications";
 import { IPagination, QueryParams } from "@/lib/types.ts";
 import { useTranslation } from "react-i18next";
@@ -133,6 +135,41 @@ export function useUpdateSpaceMutation() {
     onError: (error) => {
       const errorMessage = error["response"]?.data?.message;
       notifications.show({ message: errorMessage, color: "red" });
+    },
+  });
+}
+
+export function useUpdateWordExportStyleMutation() {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation<
+    ISpace,
+    Error,
+    { spaceId: string; style: WordExportStyle; slug?: string }
+  >({
+    mutationFn: (data) => updateWordExportStyle(data.spaceId, data.style),
+    onSuccess: (data, variables) => {
+      notifications.show({ message: t("Word export style saved") });
+      // The save response is the space row and has no membership.permissions.
+      // Writing it over the slug cache made a full-access admin look unauthorized.
+      for (const key of [variables.spaceId, variables.slug]) {
+        if (!key) continue;
+        const current = queryClient.getQueryData<ISpace>(["space", key]);
+        if (!current) continue;
+        queryClient.setQueryData(["space", key], {
+          ...current,
+          settings: data.settings ?? current.settings,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["spaces"] });
+    },
+    onError: (error) => {
+      const errorMessage = error["response"]?.data?.message;
+      notifications.show({
+        message: errorMessage || t("Failed to save Word export style"),
+        color: "red",
+      });
     },
   });
 }

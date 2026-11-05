@@ -12,6 +12,8 @@ import { useDisclosure } from "@mantine/hooks";
 import { getDrawioUrl } from "@/lib/config.ts";
 import {
   DRAWIO_EDITOR_CONFIGURATION,
+  DRAWIO_EXPORT_OPTIONS,
+  DRAWIO_PNG_FILE_NAME,
   getDrawioUrlParameters,
 } from "@/features/editor/components/drawio/drawio-embed-options";
 import {
@@ -22,7 +24,7 @@ import {
   EventSave,
 } from "react-drawio";
 import { IAttachment } from "@/features/attachments/types/attachment.types";
-import { decodeBase64ToSvgString, svgStringToFile } from "@/lib/utils";
+import { dataUrlToFile } from "@/lib/utils";
 import clsx from "clsx";
 import { IconEdit } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -39,6 +41,7 @@ export default function DrawioView(props: NodeViewProps) {
   const computedColorScheme = useComputedColorScheme();
   const isDirtyRef = useRef(false);
   const isSavingRef = useRef(false);
+  const pendingExitRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleOpen = useCallback(() => {
@@ -57,25 +60,23 @@ export default function DrawioView(props: NodeViewProps) {
     }
   }, []);
 
-  const saveData = async (svgXml: string, updateSrc = true) => {
+  const saveData = async (dataUrl: string, updateSrc = true) => {
     if (isSavingRef.current) return;
 
     isSavingRef.current = true;
     setIsSaving(true);
 
     try {
-      const svgString = decodeBase64ToSvgString(svgXml);
-      const fileName = "diagram.drawio.svg";
-      const drawioSVGFile = await svgStringToFile(svgString, fileName);
+      const drawioPngFile = await dataUrlToFile(dataUrl, DRAWIO_PNG_FILE_NAME);
 
       //@ts-ignore
       const pageId = editor.storage?.pageId;
 
       let attachment: IAttachment = null;
       if (attachmentId) {
-        attachment = await uploadFile(drawioSVGFile, pageId, attachmentId);
+        attachment = await uploadFile(drawioPngFile, pageId, attachmentId);
       } else {
-        attachment = await uploadFile(drawioSVGFile, pageId);
+        attachment = await uploadFile(drawioPngFile, pageId);
       }
 
       if (updateSrc) {
@@ -127,7 +128,7 @@ export default function DrawioView(props: NodeViewProps) {
 
     const interval = setInterval(() => {
       if (isDirtyRef.current && !isSavingRef.current && drawioRef.current) {
-        drawioRef.current.exportDiagram({ format: "xmlsvg" });
+        drawioRef.current.exportDiagram({ ...DRAWIO_EXPORT_OPTIONS });
       }
     }, 30_000);
 
@@ -166,13 +167,15 @@ export default function DrawioView(props: NodeViewProps) {
           xml={initialXML}
           baseUrl={getDrawioUrl() || undefined}
           autosave
+          exportFormat="xmlpng"
           configuration={DRAWIO_EDITOR_CONFIGURATION}
           urlParameters={getDrawioUrlParameters(computedColorScheme, true)}
           onSave={(data: EventSave) => {
             if (data.parentEvent !== "save") {
               return;
             }
-            saveData(data.xml, true).then(() => close()).catch(() => {});
+            pendingExitRef.current = true;
+            drawioRef.current?.exportDiagram({ ...DRAWIO_EXPORT_OPTIONS });
           }}
           onClose={(data: EventExit) => {
             if (data.parentEvent) {
@@ -184,7 +187,17 @@ export default function DrawioView(props: NodeViewProps) {
             isDirtyRef.current = true;
           }}
           onExport={(data: EventExport) => {
-            saveData(data.data, false).catch(() => {});
+            const shouldClose = pendingExitRef.current;
+            saveData(data.data, true)
+              .then(() => {
+                if (shouldClose) {
+                  pendingExitRef.current = false;
+                  close();
+                }
+              })
+              .catch(() => {
+                pendingExitRef.current = false;
+              });
           }}
         />
       </DrawingEditorModal>

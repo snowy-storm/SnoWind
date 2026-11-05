@@ -18,9 +18,11 @@ import { uploadFile } from "@/features/page/services/page-service.ts";
 import { getDrawioUrl, getFileUrl } from "@/lib/config.ts";
 import {
   DRAWIO_EDITOR_CONFIGURATION,
+  DRAWIO_EXPORT_OPTIONS,
+  DRAWIO_PNG_FILE_NAME,
   getDrawioUrlParameters,
 } from "@/features/editor/components/drawio/drawio-embed-options";
-import { decodeBase64ToSvgString, svgStringToFile } from "@/lib/utils";
+import { dataUrlToFile } from "@/lib/utils";
 import { IAttachment } from "@/features/attachments/types/attachment.types";
 import { usePersistDrawing } from "@/features/drawing/hooks/use-persist-drawing.ts";
 import { getDrawingAttrs } from "@/features/drawing/drawing-content.ts";
@@ -92,14 +94,12 @@ export function DrawingDrawio({
   }, [editable, open, previewSrc]);
 
   const saveData = useCallback(
-    async (svgXml: string) => {
+    async (dataUrl: string) => {
       if (isSavingRef.current) return;
       isSavingRef.current = true;
       setIsSaving(true);
       try {
-        const svgString = decodeBase64ToSvgString(svgXml);
-        const fileName = "diagram.drawio.svg";
-        const file = await svgStringToFile(svgString, fileName);
+        const file = await dataUrlToFile(dataUrl, DRAWIO_PNG_FILE_NAME);
         const attachmentId = attachmentIdRef.current;
         const attachment: IAttachment = attachmentId
           ? await uploadFile(file, pageId, attachmentId)
@@ -149,25 +149,25 @@ export function DrawingDrawio({
 
   const handleSaveAndExit = useCallback(() => {
     pendingExitRef.current = true;
-    drawioRef.current?.exportDiagram({ format: "xmlsvg" });
+    drawioRef.current?.exportDiagram({ ...DRAWIO_EXPORT_OPTIONS });
   }, []);
 
   const handleDownload = useCallback(() => {
     if (previewSrc) {
       const a = document.createElement("a");
       a.href = getFileUrl(previewSrc);
-      a.download = "diagram.drawio.svg";
+      a.download = DRAWIO_PNG_FILE_NAME;
       a.click();
       return;
     }
-    drawioRef.current?.exportDiagram({ format: "xmlsvg" });
+    drawioRef.current?.exportDiagram({ ...DRAWIO_EXPORT_OPTIONS });
   }, [previewSrc]);
 
   useEffect(() => {
     if (!editing) return;
     const interval = setInterval(() => {
       if (isDirtyRef.current && !isSavingRef.current && drawioRef.current) {
-        drawioRef.current.exportDiagram({ format: "xmlsvg" });
+        drawioRef.current.exportDiagram({ ...DRAWIO_EXPORT_OPTIONS });
       }
     }, 30_000);
     return () => clearInterval(interval);
@@ -216,11 +216,13 @@ export function DrawingDrawio({
           xml={initialXML}
           baseUrl={getDrawioUrl() || undefined}
           autosave
+          exportFormat="xmlpng"
           configuration={DRAWIO_EDITOR_CONFIGURATION}
           urlParameters={getDrawioUrlParameters(computedColorScheme, false)}
           onSave={(data: EventSave) => {
             if (data.parentEvent !== "save") return;
-            saveData(data.xml).catch(() => {});
+            pendingExitRef.current = true;
+            drawioRef.current?.exportDiagram({ ...DRAWIO_EXPORT_OPTIONS });
           }}
           onAutoSave={() => {
             isDirtyRef.current = true;

@@ -56,6 +56,9 @@ const MfaSetupRequiredPage = lazy(() =>
   })),
 );
 const SpaceTrash = lazy(() => import("@/pages/space/space-trash.tsx"));
+const WordExportStyleRoute = lazy(
+  () => import("@/pages/space/word-export-style.tsx"),
+);
 const UserApiKeys = lazy(() => import("@/ee/api-key/pages/user-api-keys"));
 const WorkspaceApiKeys = lazy(
   () => import("@/ee/api-key/pages/workspace-api-keys"),
@@ -137,6 +140,10 @@ export default function App() {
           />
           <Route path={"/s/:spaceSlug"} element={<SpaceHome />} />
           <Route path={"/s/:spaceSlug/trash"} element={<SpaceTrash />} />
+          <Route
+            path={"/s/:spaceSlug/word-export"}
+            element={<WordExportStyleRoute />}
+          />
           <Route
             path={"/s/:spaceSlug/p/:pageSlug"}
             element={<Page />}

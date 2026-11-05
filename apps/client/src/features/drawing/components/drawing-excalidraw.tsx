@@ -19,9 +19,12 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useHandleLibrary } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
 import { uploadFile } from "@/features/page/services/page-service.ts";
-import { svgStringToFile } from "@/lib";
 import { getFileUrl } from "@/lib/config.ts";
-import { localStorageLibraryAdapter } from "@/features/editor/components/excalidraw/excalidraw-utils.ts";
+import {
+  EXCALIDRAW_PNG_FILE_NAME,
+  exportExcalidrawPngFile,
+  localStorageLibraryAdapter,
+} from "@/features/editor/components/excalidraw/excalidraw-utils.ts";
 import { IAttachment } from "@/features/attachments/types/attachment.types";
 import { usePersistDrawing } from "@/features/drawing/hooks/use-persist-drawing.ts";
 import { getDrawingAttrs } from "@/features/drawing/drawing-content.ts";
@@ -110,25 +113,10 @@ export function DrawingExcalidraw({
     isSavingRef.current = true;
     setIsSaving(true);
     try {
-      const { exportToSvg } = await import("@excalidraw/excalidraw");
-      const svg = await exportToSvg({
-        elements: excalidrawAPI.getSceneElements(),
-        appState: {
-          exportEmbedScene: true,
-          exportWithDarkMode: false,
-        },
-        files: excalidrawAPI.getFiles(),
-      });
-
-      const serializer = new XMLSerializer();
-      let svgString = serializer.serializeToString(svg);
-      svgString = svgString.replace(
-        /https:\/\/unpkg\.com\/@excalidraw\/excalidraw@undefined/g,
-        "https://unpkg.com/@excalidraw/excalidraw@latest",
+      const file = await exportExcalidrawPngFile(
+        excalidrawAPI,
+        EXCALIDRAW_PNG_FILE_NAME,
       );
-
-      const fileName = "diagram.excalidraw.svg";
-      const file = await svgStringToFile(svgString, fileName);
       const attachmentId = attachmentIdRef.current;
       const attachment: IAttachment = attachmentId
         ? await uploadFile(file, pageId, attachmentId)
@@ -185,18 +173,14 @@ export function DrawingExcalidraw({
 
   const handleDownload = useCallback(async () => {
     if (editing && excalidrawAPI) {
-      const { exportToSvg } = await import("@excalidraw/excalidraw");
-      const svg = await exportToSvg({
-        elements: excalidrawAPI.getSceneElements(),
-        appState: { exportEmbedScene: true, exportWithDarkMode: false },
-        files: excalidrawAPI.getFiles(),
-      });
-      const svgString = new XMLSerializer().serializeToString(svg);
-      const blob = new Blob([svgString], { type: "image/svg+xml" });
-      const url = URL.createObjectURL(blob);
+      const file = await exportExcalidrawPngFile(
+        excalidrawAPI,
+        EXCALIDRAW_PNG_FILE_NAME,
+      );
+      const url = URL.createObjectURL(file);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "diagram.excalidraw.svg";
+      a.download = EXCALIDRAW_PNG_FILE_NAME;
       a.click();
       URL.revokeObjectURL(url);
       return;
@@ -204,7 +188,7 @@ export function DrawingExcalidraw({
     if (!previewSrc) return;
     const a = document.createElement("a");
     a.href = getFileUrl(previewSrc);
-    a.download = "diagram.excalidraw.svg";
+    a.download = EXCALIDRAW_PNG_FILE_NAME;
     a.click();
   }, [editing, excalidrawAPI, previewSrc]);
 

@@ -7,6 +7,7 @@ import {
   ISpace,
   ISpaceMember,
 } from "@/features/space/types/space.types";
+import type { WordExportStyle } from "@snowind/editor-ext";
 import { IPagination, QueryParams } from "@/lib/types.ts";
 import { saveAs } from "file-saver";
 
@@ -29,6 +30,17 @@ export async function createSpace(data: Partial<ISpace>): Promise<ISpace> {
 
 export async function updateSpace(data: Partial<ISpace>): Promise<ISpace> {
   const req = await api.post<ISpace>("/spaces/update", data);
+  return req.data;
+}
+
+export async function updateWordExportStyle(
+  spaceId: string,
+  style: WordExportStyle,
+): Promise<ISpace> {
+  const req = await api.post<ISpace>("/spaces/word-export-style", {
+    spaceId,
+    style,
+  });
   return req.data;
 }
 

@@ -39,4 +39,24 @@ export {
   pageNodeToDocxBuffer,
   type DocxImageResolver,
 } from "./lib/prosemirror-docx";
+export {
+  parseWordExportStyle,
+  standardWordExportStyle,
+  presetOfficialStyle,
+  presetTechnicalStyle,
+  presetBriefStyle,
+  WORD_EXPORT_FONT_SUGGESTIONS,
+  CHINESE_FONT_SIZES,
+  formatFontSizePt,
+  namedFontSize,
+  parseCharacterCount,
+  formatCharacterCount,
+  parseSpacingMeasure,
+  formatSpacingMeasure,
+  headingOutlineNumberText,
+  type SpacingMeasureUnit,
+  type WordExportStyle,
+  type WordExportRenderStyle,
+  type WordExportStyleIssue,
+} from "./lib/prosemirror-docx/word-export-style";
 export * from "./lib/base-embed";

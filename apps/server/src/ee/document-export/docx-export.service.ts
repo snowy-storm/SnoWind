@@ -1,14 +1,25 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { validate as isValidUUID } from 'uuid';
-import { pageNodeToDocxBuffer } from '@snowind/editor-ext';
+import {
+  pageNodeToDocxBuffer,
+  parseWordExportStyle,
+  type WordExportRenderStyle,
+} from '@snowind/editor-ext';
 import { Page } from '@snowind/db/types/entity.types';
 import { jsonToNode } from '../../collaboration/collaboration.util';
 import { getProsemirrorContent } from '../../common/helpers/prosemirror/utils';
 import { getPageTitle } from '../../integrations/export/utils';
 import { StorageService } from '../../integrations/storage/storage.service';
 import { AttachmentRepo } from '../../database/repos/attachment/attachment.repo';
+import { SpaceRepo } from '../../database/repos/space/space.repo';
 import { isSvgContent, svgToPng } from './svg-to-png';
 import { mermaidToPng } from './mermaid-to-png';
+
+/**
+ * Set to false to ignore saved space styles and export with the built-in
+ * chinese-styles path. Image rasterization is not affected either way.
+ */
+const APPLY_SAVED_WORD_EXPORT_STYLE = true;
 
 const FILE_ATTACHMENT_ID_RE =
   /\/(?:api\/)?files\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?:\/|$|\?)/;
@@ -20,6 +31,7 @@ export class DocxExportService {
   constructor(
     private readonly storageService: StorageService,
     private readonly attachmentRepo: AttachmentRepo,
+    @Optional() private readonly spaceRepo?: SpaceRepo,
   ) {}
 
   async exportPageAsDocx(page: Page): Promise<Buffer> {
@@ -43,9 +55,50 @@ export class DocxExportService {
       content,
     });
 
-    return pageNodeToDocxBuffer(doc, (src) =>
-      this.resolveImageBuffer(src, mermaidImages),
-    );
+    const resolve = (src: string) => this.resolveImageBuffer(src, mermaidImages);
+    const style = await this.loadWordExportStyle(page);
+    if (!style) return pageNodeToDocxBuffer(doc, resolve);
+
+    try {
+      return await pageNodeToDocxBuffer(doc, resolve, {
+        ...style,
+        skipFirstHeadingNumber: Boolean(page.title),
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Styled Word export failed for page ${page.id}; using built-in style`,
+        err,
+      );
+      return pageNodeToDocxBuffer(doc, resolve);
+    }
+  }
+
+  private async loadWordExportStyle(
+    page: Page,
+  ): Promise<WordExportRenderStyle | undefined> {
+    if (!APPLY_SAVED_WORD_EXPORT_STYLE || !this.spaceRepo) return undefined;
+    if (!page.spaceId || !page.workspaceId) return undefined;
+    try {
+      const space = await this.spaceRepo.findById(page.spaceId, page.workspaceId);
+      const raw = (space?.settings as { wordExport?: unknown } | null)?.wordExport;
+      if (raw == null) return undefined;
+      const parsed = parseWordExportStyle(raw);
+      if (parsed.ok === false) {
+        this.logger.warn(
+          `Ignoring invalid wordExport style for space ${page.spaceId}: ${parsed.errors
+            .map((issue) => issue.path)
+            .join(', ')}`,
+        );
+        return undefined;
+      }
+      return parsed.value;
+    } catch (err) {
+      this.logger.warn(
+        `Failed to load wordExport style for space ${page.spaceId}`,
+        err,
+      );
+      return undefined;
+    }
   }
 
   private async replaceMermaidBlocks(

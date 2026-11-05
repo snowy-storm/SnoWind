@@ -27,6 +27,7 @@ import {
   SpaceCaslSubject,
 } from '../casl/interfaces/space-ability.type';
 import { UpdateSpaceDto } from './dto/update-space.dto';
+import { UpdateWordExportStyleDto } from './dto/update-word-export-style.dto';
 import { findHighestUserSpaceRole } from '@snowind/db/repos/space/utils';
 import { SpaceMemberRepo } from '@snowind/db/repos/space/space-member.repo';
 import {
@@ -163,6 +164,21 @@ export class SpaceController {
       throw new ForbiddenException();
     }
     return this.spaceService.updateSpace(updateSpaceDto, workspace.id);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('word-export-style')
+  @OAuthScope('write')
+  async updateWordExportStyle(
+    @Body() dto: UpdateWordExportStyleDto,
+    @AuthUser() user: User,
+    @AuthWorkspace() workspace: Workspace,
+  ) {
+    const ability = await this.spaceAbility.createForUser(user, dto.spaceId);
+    if (ability.cannot(SpaceCaslAction.Manage, SpaceCaslSubject.Settings)) {
+      throw new ForbiddenException();
+    }
+    return this.spaceService.updateWordExportStyle(dto, workspace.id);
   }
 
   @HttpCode(HttpStatus.OK)

@@ -11,6 +11,8 @@ import { SpaceRepo } from '@snowind/db/repos/space/space.repo';
 import { KyselyDB, KyselyTransaction } from '@snowind/db/types/kysely.types';
 import { Space, User, Workspace } from '@snowind/db/types/entity.types';
 import { UpdateSpaceDto } from '../dto/update-space.dto';
+import { UpdateWordExportStyleDto } from '../dto/update-word-export-style.dto';
+import { parseWordExportStyle } from '@snowind/editor-ext';
 import { executeTx } from '@snowind/db/utils';
 import { InjectKysely } from 'nestjs-kysely';
 import { SpaceMemberService } from './space-member.service';
@@ -217,6 +219,47 @@ export class SpaceService {
         changes: { before, after },
       });
     }
+
+    return updatedSpace;
+  }
+
+  async updateWordExportStyle(
+    dto: UpdateWordExportStyleDto,
+    workspaceId: string,
+  ): Promise<Space> {
+    const parsed = parseWordExportStyle(dto.style);
+    if (parsed.ok === false) {
+      throw new BadRequestException(
+        parsed.errors.map((issue) => `${issue.path}: ${issue.message}`).join('；'),
+      );
+    }
+
+    const spaceBefore = await this.spaceRepo.findById(dto.spaceId, workspaceId);
+    if (!spaceBefore) {
+      throw new NotFoundException('Space not found');
+    }
+    const beforeStyle = (spaceBefore.settings as { wordExport?: unknown } | null)
+      ?.wordExport;
+
+    const updatedSpace = await this.spaceRepo.updateWordExportSettings(
+      dto.spaceId,
+      workspaceId,
+      parsed.value,
+    );
+    if (!updatedSpace) {
+      throw new NotFoundException('Space not found');
+    }
+
+    this.auditService.log({
+      event: AuditEvent.SPACE_UPDATED,
+      resourceType: AuditResource.SPACE,
+      resourceId: dto.spaceId,
+      spaceId: dto.spaceId,
+      changes: {
+        before: { wordExport: beforeStyle ?? null },
+        after: { wordExport: parsed.value },
+      },
+    });
 
     return updatedSpace;
   }

@@ -12,6 +12,7 @@ import {
   IconEye,
   IconEyeOff,
   IconFileExport,
+  IconFileWord,
   IconHome,
   IconPlus,
   IconSearch,
@@ -275,6 +276,10 @@ export function SpaceSidebar() {
                   SpaceCaslAction.Manage,
                   SpaceCaslSubject.Page,
                 )}
+                canManageSettings={spaceAbility.can(
+                  SpaceCaslAction.Manage,
+                  SpaceCaslSubject.Settings,
+                )}
                 onSpaceSettings={openSettings}
               />
 
@@ -363,11 +368,13 @@ export function SpaceSidebar() {
 interface SpaceMenuProps {
   spaceId: string;
   canManagePages: boolean;
+  canManageSettings: boolean;
   onSpaceSettings: () => void;
 }
 function SpaceMenu({
   spaceId,
   canManagePages,
+  canManageSettings,
   onSpaceSettings,
 }: SpaceMenuProps) {
   const { t } = useTranslation();
@@ -488,6 +495,16 @@ function SpaceMenu({
               >
                 {t("Space settings")}
               </Menu.Item>
+
+              {canManageSettings && (
+                <Menu.Item
+                  component={Link}
+                  to={`/s/${spaceSlug}/word-export`}
+                  leftSection={<IconFileWord size={16} />}
+                >
+                  {t("Word export style")}
+                </Menu.Item>
+              )}
 
               <Menu.Item
                 component={Link}

@@ -18,6 +18,8 @@ import {
   createHeadingNumbering,
   HEADING_OUTLINE_REFERENCE,
 } from './numbering';
+import { renderDocxWithStyle } from './word-export-apply';
+import type { WordExportRenderStyle } from './word-export-style';
 import {
   AlignmentType,
   WidthType,
@@ -406,7 +408,13 @@ function headingStyle(level: number) {
 export async function pageNodeToDocxBuffer(
   doc: Node,
   getImageBuffer: DocxImageResolver,
+  style?: WordExportRenderStyle,
 ): Promise<Buffer> {
+  // No saved style: keep the historical chinese-styles path, including
+  // full-content-width images. SVG raster size is unchanged on both paths.
+  if (style) {
+    return renderDocxWithStyle(doc, getImageBuffer, style, defaultAsyncNodes, defaultMarks);
+  }
   const serializer = new DocxSerializerAsync(defaultAsyncNodes, defaultMarks);
   const section = createExportSectionConfig();
   const wordDoc = await serializer.serializeAsync(

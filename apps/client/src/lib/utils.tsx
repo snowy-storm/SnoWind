@@ -79,6 +79,25 @@ export function decodeBase64ToSvgString(base64Data: string): string {
   return decodeBase64(base64Data);
 }
 
+/** Convert a data URL (svg/png/…) into a File for attachment upload. */
+export async function dataUrlToFile(
+  dataUrl: string,
+  fileName: string,
+): Promise<File> {
+  if (!dataUrl?.startsWith("data:")) {
+    throw new Error("Expected a data URL");
+  }
+  const blob = await (await fetch(dataUrl)).blob();
+  if (!blob.size) {
+    throw new Error("Empty data URL payload");
+  }
+  const mimeType =
+    blob.type ||
+    dataUrl.match(/^data:([^;,]+)/)?.[1] ||
+    "application/octet-stream";
+  return new File([blob], fileName, { type: mimeType });
+}
+
 export function capitalizeFirstChar(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
