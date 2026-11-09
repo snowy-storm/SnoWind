@@ -530,9 +530,19 @@ function readTitle(value: unknown, index: number, issues: IssueList): WordExport
   };
 }
 
+function unwrapStoredStyle(input: unknown): unknown {
+  if (typeof input !== 'string') return input;
+  try {
+    return JSON.parse(input);
+  } catch {
+    return input;
+  }
+}
+
 export function parseWordExportStyle(
-  input: unknown,
+  raw: unknown,
 ): { ok: true; value: WordExportStyle } | { ok: false; errors: WordExportStyleIssue[] } {
+  const input = unwrapStoredStyle(raw);
   const issues: IssueList = [];
   if (!isRecord(input)) {
     return { ok: false, errors: [{ path: '', message: '配置必须是对象' }] };

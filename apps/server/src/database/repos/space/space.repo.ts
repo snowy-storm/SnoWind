@@ -137,7 +137,7 @@ export class SpaceRepo {
     return db
       .updateTable('spaces')
       .set({
-        settings: sql`COALESCE(settings, '{}'::jsonb) || jsonb_build_object('wordExport', ${JSON.stringify(style)}::jsonb)`,
+        settings: sql`COALESCE(settings, '{}'::jsonb) || jsonb_build_object('wordExport', ${JSON.stringify(style)}::text::jsonb)`,
         updatedAt: new Date(),
       })
       .where('id', '=', spaceId)

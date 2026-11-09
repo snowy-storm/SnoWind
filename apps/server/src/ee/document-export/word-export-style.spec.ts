@@ -21,6 +21,14 @@ describe('word export style', () => {
     expect(parsed.ok).toBe(true);
   });
 
+  it('reads a style that was saved as a JSON string', () => {
+    const parsed = parseWordExportStyle(JSON.stringify(standardWordExportStyle()));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok === true) {
+      expect(parsed.value.bodyStyle.fontFamily).toBe('仿宋');
+    }
+  });
+
   it('keeps saved fonts and numbering templates that the form no longer edits', () => {
     const style = standardWordExportStyle();
     style.bodyStyle.fontFamily = '仿宋_GB2312';
