@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef, useState, useEffect } from "react";
+import { useMemo, useCallback, useRef, useState, useEffect, useLayoutEffect } from "react";
 import { useMediaQuery } from "@mantine/hooks";
 import {
   useReactTable,
@@ -348,31 +348,94 @@ export function useBaseTable(
     getRowId: (row) => row.id,
   });
 
+  // The table instance is stable, but its state updates on the next render.
+  // Snapshot after that commit. Reading it inside the click handler still
+  // sees the previous visibility, so a hide is saved as shown and then
+  // reverted when the server config comes back.
+  const tableRef = useRef(table);
+  tableRef.current = table;
+  const activeViewIdRef = useRef(activeView?.id);
+  activeViewIdRef.current = activeView?.id;
+
+  const pendingLayoutRef = useRef<{
+    viewId: string;
+    pageId: string;
+    config: ViewConfigPatch;
+  } | null>(null);
+  const persistRequestRef = useRef<{ viewId: string; pageId: string } | null>(null);
+
+  const flushPendingLayout = useCallback(() => {
+    const pending = pendingLayoutRef.current;
+    pendingLayoutRef.current = null;
+    persistRequestRef.current = null;
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+    if (!pending) {
+      setHasPendingEdit(false);
+      return;
+    }
+    updateViewMutation.mutate(
+      { viewId: pending.viewId, pageId: pending.pageId, config: pending.config },
+      {
+        onSettled: () => {
+          if (persistTimerRef.current === null && pendingLayoutRef.current === null) {
+            setHasPendingEdit(false);
+          }
+        },
+      },
+    );
+  }, [updateViewMutation]);
+
+  useLayoutEffect(() => {
+    const request = persistRequestRef.current;
+    if (!request || request.viewId !== activeView?.id) return;
+    pendingLayoutRef.current = {
+      viewId: request.viewId,
+      pageId: request.pageId,
+      config: buildLayoutConfigPatch(table),
+    };
+  }, [table, activeView?.id, columnVisibility, columnOrder, columnSizing]);
+
   const persistViewConfig = useCallback(() => {
     if (!activeView || !base) return;
+
+    persistRequestRef.current = { viewId: activeView.id, pageId: base.id };
+    setHasPendingEdit(true);
 
     if (persistTimerRef.current) {
       clearTimeout(persistTimerRef.current);
     }
 
-    setHasPendingEdit(true);
-
     persistTimerRef.current = setTimeout(() => {
       persistTimerRef.current = null;
-      const config = buildLayoutConfigPatch(table);
-      updateViewMutation.mutate(
-        { viewId: activeView.id, pageId: base.id, config },
-        {
-          onSettled: () => {
-            // Only clear if no new debounce was scheduled while in flight.
-            if (persistTimerRef.current === null) {
-              setHasPendingEdit(false);
-            }
-          },
-        },
-      );
+      const request = persistRequestRef.current;
+      // Still on the edited view: read the committed column state.
+      // A view switch already stored that view's snapshot and must not
+      // read the table again, or the next view's columns would be saved.
+      if (request && request.viewId === activeViewIdRef.current) {
+        pendingLayoutRef.current = {
+          viewId: request.viewId,
+          pageId: request.pageId,
+          config: buildLayoutConfigPatch(tableRef.current),
+        };
+      }
+      flushPendingLayout();
     }, 300);
-  }, [activeView, base, table, updateViewMutation]);
+  }, [activeView, base, flushPendingLayout]);
+
+  const activeViewId = activeView?.id;
+  const previousViewIdRef = useRef(activeViewId);
+  useEffect(() => {
+    if (previousViewIdRef.current === activeViewId) return;
+    previousViewIdRef.current = activeViewId;
+    if (pendingLayoutRef.current) {
+      flushPendingLayout();
+    } else {
+      setHasPendingEdit(false);
+    }
+  }, [activeViewId, flushPendingLayout]);
 
   return { table, persistViewConfig };
 }

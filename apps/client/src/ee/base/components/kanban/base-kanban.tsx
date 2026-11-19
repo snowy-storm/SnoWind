@@ -90,6 +90,7 @@ export function BaseKanban({ base, view, pageId, embedded, editable, viewFilter 
       const destFilter = buildColumnFilter(viewFilter, groupByPropertyId, targetColumnKey);
       moveCard.mutate({
         pageId,
+        viewId: view.id,
         rowId: draggedRowId,
         sourceColumnFilter: sourceFilter,
         destColumnFilter: destFilter,

@@ -230,6 +230,7 @@ export function RowDetailModal({
       createCardMutation.mutate(
         {
           pageId: base.id,
+          viewId: createIntent.viewId,
           destColumnFilter: createIntent.destColumnFilter,
           groupByPropertyId: createIntent.groupByPropertyId,
           columnKey: createIntent.columnKey,

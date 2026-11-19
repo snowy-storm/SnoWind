@@ -7,6 +7,7 @@ import {
   IconEye,
   IconDownload,
   IconArrowsDiagonal,
+  IconWindowMaximize,
   IconLayoutColumns,
   IconAdjustments,
   IconListTree,
@@ -48,6 +49,7 @@ type BaseToolbarProps = {
   onDraftFiltersChange: (filter: FilterGroup | undefined) => void;
   onDraftGroupsChange: (groups: ViewGroupConfig[] | undefined) => void;
   onExpand?: () => void;
+  onOpenWindow?: () => void;
   getViewShareUrl?: (viewId: string) => string | null;
   currentUserId?: string;
 };
@@ -65,6 +67,7 @@ export function BaseToolbar({
   onDraftFiltersChange,
   onDraftGroupsChange,
   onExpand,
+  onOpenWindow,
   getViewShareUrl,
   currentUserId,
 }: BaseToolbarProps) {
@@ -331,6 +334,20 @@ export function BaseToolbar({
               </ViewPropertyVisibility>
             )}
           </>
+        )}
+
+        {onOpenWindow && (
+          <Tooltip label={t("Open in window")}>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              color="gray"
+              aria-label={t("Open in window")}
+              onClick={onOpenWindow}
+            >
+              <IconWindowMaximize size={16} />
+            </ActionIcon>
+          </Tooltip>
         )}
 
         {onExpand && (

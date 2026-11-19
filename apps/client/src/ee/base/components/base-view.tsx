@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Text, Stack } from "@mantine/core";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Button, Text, Stack } from "@mantine/core";
 import { useAtom, useAtomValue } from "jotai";
 import { IconTable } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
@@ -47,6 +48,7 @@ import { RowExpandProvider } from "@/ee/base/context/row-expand";
 import { usePageQuery } from "@/features/page/queries/page-query";
 import { buildPageUrl } from "@/features/page/page.utils";
 import { getAppUrl } from "@/lib/config.ts";
+import { queryClient } from "@/main";
 import { useNavigate } from "react-router-dom";
 import {
   canEditBaseView,
@@ -58,6 +60,7 @@ import {
   buildQuickSearchFilter,
   mergeViewFilterWithQuickSearch,
 } from "@/features/page-find/utils/build-quick-search-filter";
+import { DrawingEditorModal } from "@/features/drawing/components/drawing-editor-modal";
 import classes from "@/ee/base/styles/grid.module.css";
 import viewClasses from "@/ee/base/styles/base-view.module.css";
 import kanbanClasses from "@/ee/base/styles/kanban.module.css";
@@ -189,10 +192,34 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
   const {
     data: rowsData,
     isLoading: rowsLoading,
+    isFetching: rowsFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useBaseRowsQuery(base && !isKanban ? pageId : undefined, activeFilter, activeSorts);
+  } = useBaseRowsQuery(
+    base && !isKanban ? pageId : undefined,
+    activeView?.id,
+    activeFilter,
+    activeSorts,
+  );
+
+  const [refreshingViewId, setRefreshingViewId] = useState<string | null>(null);
+  const sawViewFetchRef = useRef(false);
+  useEffect(() => {
+    if (!refreshingViewId) return;
+    if (isKanban || refreshingViewId !== activeView?.id) {
+      sawViewFetchRef.current = false;
+      setRefreshingViewId(null);
+      return;
+    }
+    if (rowsFetching) sawViewFetchRef.current = true;
+    if (sawViewFetchRef.current && !rowsFetching) {
+      sawViewFetchRef.current = false;
+      setRefreshingViewId(null);
+    }
+  }, [rowsFetching, isKanban, refreshingViewId, activeView?.id]);
+  const listRefreshing =
+    refreshingViewId != null && refreshingViewId === activeView?.id;
 
   const updateRowMutation = useUpdateRowMutation();
   const createRowMutation = useCreateRowMutation();
@@ -311,9 +338,13 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
 
   const handleViewChange = useCallback(
     (viewId: string) => {
+      queryClient.invalidateQueries({
+        queryKey: ["base-rows", pageId, viewId],
+      });
+      setRefreshingViewId(viewId);
       setActiveViewId(viewId);
     },
-    [setActiveViewId],
+    [pageId, setActiveViewId],
   );
 
   const handleColumnReorder = useCallback(
@@ -425,6 +456,52 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
     [viewEditable, pageId, reorderRow],
   );
 
+  const [windowOpen, setWindowOpen] = useState(false);
+  const inlineHostRef = useRef<HTMLDivElement>(null);
+  const modalHostRef = useRef<HTMLDivElement>(null);
+  const [portalHost] = useState<HTMLDivElement | null>(() => {
+    if (typeof document === "undefined") return null;
+    const el = document.createElement("div");
+    el.style.display = "flex";
+    el.style.flexDirection = "column";
+    el.style.flex = "1";
+    el.style.height = "100%";
+    el.style.minHeight = "0";
+    el.style.minWidth = "0";
+    return el;
+  });
+  const showStandaloneTable =
+    !embedded && !isKanban && !!base && !baseLoading && !baseError;
+
+  useEffect(() => {
+    if (!showStandaloneTable && windowOpen) setWindowOpen(false);
+  }, [showStandaloneTable, windowOpen]);
+
+  const setInlineHost = useCallback(
+    (node: HTMLDivElement | null) => {
+      inlineHostRef.current = node;
+      if (!node || !portalHost || windowOpen) return;
+      if (portalHost.parentElement !== node) node.appendChild(portalHost);
+    },
+    [portalHost, windowOpen],
+  );
+
+  const setModalHost = useCallback(
+    (node: HTMLDivElement | null) => {
+      modalHostRef.current = node;
+      if (!node || !portalHost || !windowOpen) return;
+      if (portalHost.parentElement !== node) node.appendChild(portalHost);
+    },
+    [portalHost, windowOpen],
+  );
+
+  useLayoutEffect(() => {
+    if (!portalHost || !showStandaloneTable) return;
+    const host = windowOpen ? modalHostRef.current : inlineHostRef.current;
+    if (!host || portalHost.parentElement === host) return;
+    host.appendChild(portalHost);
+  }, [portalHost, showStandaloneTable, windowOpen]);
+
   if (baseLoading || (!isKanban && rowsLoading)) {
     return <BaseTableSkeleton />;
   }
@@ -465,6 +542,9 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
       onDraftFiltersChange={handleDraftFiltersChange}
       onDraftGroupsChange={handleDraftGroupsChange}
       onExpand={embedded ? handleExpand : undefined}
+      onOpenWindow={
+        showStandaloneTable && !windowOpen ? () => setWindowOpen(true) : undefined
+      }
       getViewShareUrl={getViewShareUrl}
     />
   );
@@ -500,6 +580,8 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
       scrollportRef={scrollportRef}
       kanbanFilter={activeFilter}
       aboveBand={folded}
+      viewId={effectiveView?.id}
+      listRefreshing={listRefreshing}
     />
   );
 
@@ -569,23 +651,65 @@ export function BaseView({ pageId, embedded, editable = true, titleSlot }: BaseV
     );
   }
 
-  // Standalone: title, banner, and toolbar go in aboveBand inside the scroll
-  // container so they scroll away; only the column-header row stays pinned.
-  return (
-    <BaseEditableProvider editable={viewEditable}>
-      <div className={viewClasses.fullHeight}>
+  const windowTitle =
+    (page?.title || base.name || "").trim() || t("Untitled base");
+
+  // Standalone: title, banner, and toolbar sit in the scrollport and scroll
+  // away vertically. Horizontal scroll shares that same port, while the band
+  // above the column headers stays pinned to the left edge.
+  const tableTree = portalHost
+    ? createPortal(
         <div className={classes.tableScrollport} ref={scrollportRef}>
           <RowExpandProvider value={handleExpandRow}>
             {viewRenderer(
               <>
-                {titleSlot}
+                {windowOpen ? null : titleSlot}
                 {banner}
                 {toolbar}
               </>,
             )}
           </RowExpandProvider>
-        </div>
+        </div>,
+        portalHost,
+      )
+    : null;
+
+  return (
+    <BaseEditableProvider editable={viewEditable}>
+      <div className={viewClasses.fullHeight}>
+        {windowOpen ? (
+          <div className={classes.windowPlaceholder}>
+            <IconTable size={40} stroke={1.4} />
+            <Text size="sm" c="dimmed">
+              {t("Opened in a window")}
+            </Text>
+          </div>
+        ) : null}
+        <div
+          ref={setInlineHost}
+          className={classes.windowInlineHost}
+          hidden={windowOpen}
+        />
+        {tableTree}
       </div>
+      <DrawingEditorModal
+        opened={windowOpen}
+        onClose={() => setWindowOpen(false)}
+        title={windowTitle}
+        defaultMaximized
+        closeOnClickOutside={false}
+        actions={
+          <Button
+            size="compact-sm"
+            variant="default"
+            onClick={() => setWindowOpen(false)}
+          >
+            {t("Close")}
+          </Button>
+        }
+      >
+        <div ref={setModalHost} className={classes.windowModalHost} />
+      </DrawingEditorModal>
       <RowDetailModal
         base={base}
         rows={rows}

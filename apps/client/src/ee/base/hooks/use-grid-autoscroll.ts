@@ -16,9 +16,10 @@ const MAX_PAN_SPEED_PX = 16;
 export function useGridAutoScroll<T extends HTMLElement>(
   bodyRef: RefObject<T | null>,
   pageId: string,
+  elementOverride?: HTMLElement | null,
 ): void {
   useEffect(() => {
-    const element = bodyRef.current;
+    const element = elementOverride ?? bodyRef.current;
     if (!element) return;
 
     let rafId = 0;
@@ -116,5 +117,5 @@ export function useGridAutoScroll<T extends HTMLElement>(
         element.removeEventListener("scroll", keepHorizontalScroll);
       },
     );
-  }, [bodyRef, pageId]);
+  }, [bodyRef, pageId, elementOverride]);
 }

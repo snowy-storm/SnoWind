@@ -33,6 +33,8 @@ type BaseTableProps = {
   persistViewConfig: () => void;
   scrollportRef: React.RefObject<HTMLDivElement>;
   aboveBand?: React.ReactNode;
+  viewId?: string;
+  listRefreshing?: boolean;
 };
 
 export function BaseTable({
@@ -53,6 +55,8 @@ export function BaseTable({
   onRowReorder,
   scrollportRef,
   aboveBand,
+  viewId,
+  listRefreshing,
 }: BaseTableProps) {
   return (
     <GridContainer
@@ -72,6 +76,8 @@ export function BaseTable({
       aboveBand={aboveBand ?? null}
       groups={effectiveView?.config?.groups}
       rowHeight={effectiveView?.config?.rowHeight}
+      viewId={viewId}
+      listRefreshing={listRefreshing}
     />
   );
 }

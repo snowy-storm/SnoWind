@@ -2,10 +2,82 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  min-width: 0;
+  overflow: auto;
   overflow-anchor: none;
   padding-bottom: 100px;
+  scrollbar-width: thin;
+}
+
+.tableScrollport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tableScrollport::-webkit-scrollbar-thumb {
+  background-color: light-dark(
+    var(--mantine-color-gray-4),
+    var(--mantine-color-dark-4)
+  );
+  border-radius: 4px;
+}
+
+.tableScrollport::-webkit-scrollbar-thumb:hover {
+  background-color: light-dark(
+    var(--mantine-color-gray-5),
+    var(--mantine-color-dark-3)
+  );
+}
+
+.tableScrollport::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+.windowInlineHost {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.windowInlineHost[hidden] {
+  display: none;
+}
+
+.windowModalHost {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.windowPlaceholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mantine-spacing-xs);
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+}
+
+.listRefreshing {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  height: 2px;
+  background: var(--mantine-color-blue-5);
+}
+
+.aboveBandPin {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--scrollport-client-width, 100%);
+  max-width: var(--scrollport-client-width, 100%);
+  box-sizing: border-box;
+  background-color: var(--mantine-color-body);
 }
 
 .stickyBand {
@@ -70,6 +142,11 @@
 
 .gridRoot {
   min-width: 0;
+}
+
+.gridRoot[data-unified-scroll] .headerGrid,
+.gridRoot[data-unified-scroll] .bodyGrid {
+  overflow-x: visible;
 }
 
 /* Virtualized rows: position is owned by the virtualizer (writes `top`

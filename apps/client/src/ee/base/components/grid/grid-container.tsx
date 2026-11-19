@@ -105,6 +105,9 @@ type GridContainerProps = {
   groups?: ViewGroupConfig[];
   /** Table-view data row height; group headers stay compact. */
   rowHeight?: string;
+  /** Changing this resets grouping collapse and scroll, which belong to one view. */
+  viewId?: string;
+  listRefreshing?: boolean;
   /**
    * What the virtualizer measures and what the StickyBand sticks to.
    * Standalone passes a ref into the .tableScrollport wrapper; inline
@@ -135,21 +138,52 @@ export function GridContainer({
   isFiltered,
   groups,
   rowHeight,
+  viewId,
+  listRefreshing,
   scrollElement,
   aboveBand,
 }: GridContainerProps) {
+  const unifiedScroll = scrollElement instanceof HTMLElement;
   const headerRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const rowsContainerRef = useRef<HTMLDivElement>(null);
-  useHorizontalScrollSync(bodyRef, headerRef);
-  useGridAutoScroll(bodyRef, pageId);
+  useHorizontalScrollSync(bodyRef, headerRef, !unifiedScroll);
+  useGridAutoScroll(bodyRef, pageId, unifiedScroll ? scrollElement : null);
+  const resolveHorizontalScroller = useCallback((): HTMLElement | null => {
+    if (scrollElement instanceof HTMLElement) return scrollElement;
+    return bodyRef.current;
+  }, [scrollElement]);
   useRowAutoScroll(scrollElement, pageId);
+
+  useLayoutEffect(() => {
+    if (!(scrollElement instanceof HTMLElement)) return;
+    const el = scrollElement;
+    const apply = () => {
+      el.style.setProperty("--scrollport-client-width", `${el.clientWidth}px`);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [scrollElement]);
   const lastTriggeredRowsLenRef = useRef(0);
   const rows = table.getRowModel().rows;
   const editable = useBaseEditable();
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const scrollElementRef = useRef(scrollElement);
+  scrollElementRef.current = scrollElement;
+  useEffect(() => {
+    setCollapsedGroupIds(new Set());
+    const scroller = scrollElementRef.current;
+    if (scroller instanceof HTMLElement) {
+      scroller.scrollTop = 0;
+      scroller.scrollLeft = 0;
+    } else if (typeof window !== "undefined" && scroller === window) {
+      window.scrollTo(0, 0);
+    }
+  }, [viewId]);
   const displayItems = useMemo(
     () =>
       buildTableDisplayItems(
@@ -354,7 +388,7 @@ export function GridContainer({
         virtualizer.scrollToIndex(virtualIndex, { align: "auto" });
       }
       requestAnimationFrame(() => {
-        const scroller = bodyRef.current;
+        const scroller = resolveHorizontalScroller();
         const el = document.getElementById(
           `base-cell-${coord.rowId}-${coord.propertyId}`,
         );
@@ -369,7 +403,7 @@ export function GridContainer({
         }
       });
     },
-    [virtualizer, pinnedLeftWidth, rowVirtualIndexById],
+    [virtualizer, pinnedLeftWidth, rowVirtualIndexById, resolveHorizontalScroller],
   );
 
   useEffect(() => {
@@ -785,13 +819,14 @@ export function GridContainer({
     // Wait for React to re-render with the new column, then scroll to it
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        bodyRef.current?.scrollTo({
-          left: bodyRef.current.scrollWidth,
+        const scroller = resolveHorizontalScroller();
+        scroller?.scrollTo({
+          left: scroller.scrollWidth,
           behavior: "smooth",
         });
       });
     });
-  }, []);
+  }, [resolveHorizontalScroller]);
 
   const getColumnOrder = useCallback(
     () => table.getState().columnOrder,
@@ -802,10 +837,23 @@ export function GridContainer({
     <div
       className={classes.gridRoot}
       data-row-height={rowHeightKey}
+      data-unified-scroll={unifiedScroll ? "" : undefined}
       style={gridRootStyle}
     >
-      {aboveBand}
-      <div className={classes.stickyBand}>
+      {aboveBand ? (
+        <div className={unifiedScroll ? classes.aboveBandPin : undefined}>
+          {aboveBand}
+        </div>
+      ) : null}
+      {listRefreshing ? <div className={classes.listRefreshing} /> : null}
+      <div
+        className={classes.stickyBand}
+        style={
+          unifiedScroll
+            ? { width: totalColumnsWidth, minWidth: "100%" }
+            : undefined
+        }
+      >
         <div
           className={classes.headerGrid}
           ref={headerRef}

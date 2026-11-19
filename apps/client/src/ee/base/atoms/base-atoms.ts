@@ -82,6 +82,7 @@ export type KanbanCreateIntent = {
   columnKey: string;
   groupByPropertyId: string;
   destColumnFilter: FilterNode | undefined;
+  viewId: string;
   position?: string;
 } | null;
 

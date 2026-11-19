@@ -166,28 +166,9 @@ export function useBaseSocket(pageId: string | undefined): void {
 
       switch (event.operation) {
         case "base:row:created": {
-          const e = event as BaseRowCreated;
-          const baseForCreate = queryClient.getQueryData<IBase>(["bases", pageId]);
-          const hasKanbanForCreate = (baseForCreate?.views ?? []).some((v) => v.type === "kanban");
-          if (hasKanbanForCreate) {
-            invalidateBaseRows(pageId);
-          } else {
-            queryClient.setQueriesData<InfiniteData<IPagination<IBaseRow>>>(
-              { queryKey: ["base-rows", pageId] },
-              (old) => {
-                if (!old) return old;
-                const lastPageIndex = old.pages.length - 1;
-                return {
-                  ...old,
-                  pages: old.pages.map((page, index) =>
-                    index === lastPageIndex
-                      ? { ...page, items: [...page.items, e.row] }
-                      : page,
-                  ),
-                };
-              },
-            );
-          }
+          // Refetch each view's own list so a filtered view does not inherit
+          // a row appended from another view's cache.
+          invalidateBaseRows(pageId);
           break;
         }
         case "base:row:updated": {

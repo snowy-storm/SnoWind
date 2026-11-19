@@ -57,12 +57,14 @@ function newRequestId(): string {
 
 export function baseRowsQueryKey(
   pageId: string | undefined,
+  viewId: string | undefined,
   filter: FilterNode | undefined,
   sorts: ViewSortConfig[] | undefined,
 ) {
   return [
     "base-rows",
     pageId,
+    viewId,
     normalizeFilter(filter),
     sorts?.length ? sorts : undefined,
   ] as const;
@@ -83,6 +85,7 @@ export function findRowInInfinite(
 
 export function useBaseRowsQuery(
   pageId: string | undefined,
+  viewId: string | undefined,
   filter?: FilterNode,
   sorts?: ViewSortConfig[],
 ) {
@@ -90,7 +93,7 @@ export function useBaseRowsQuery(
   const activeSorts = sorts?.length ? sorts : undefined;
 
   const query = useInfiniteQuery({
-    queryKey: baseRowsQueryKey(pageId, filter, sorts),
+    queryKey: baseRowsQueryKey(pageId, viewId, filter, sorts),
     queryFn: ({ pageParam }) =>
       listRows(pageId!, {
         cursor: pageParam,
@@ -98,7 +101,7 @@ export function useBaseRowsQuery(
         filter: activeFilter,
         sorts: activeSorts,
       }),
-    enabled: !!pageId,
+    enabled: !!pageId && !!viewId,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: IBaseRowsPage) =>
       lastPage.meta?.hasNextPage
@@ -174,27 +177,12 @@ export function useCreateRowMutation() {
   return useMutation<IBaseRow, Error, CreateRowInput>({
     mutationFn: (data) => createRow({ ...data, requestId: newRequestId() }),
     onSuccess: (newRow) => {
-      queryClient.setQueriesData<InfiniteData<IBaseRowsPage>>(
-        { queryKey: ["base-rows", newRow.pageId] },
-        (old) => {
-          if (!old) return old;
-          if (rowAlreadyInCache(old, newRow.id)) return old;
-          const lastPageIndex = old.pages.length - 1;
-          return {
-            ...old,
-            pages: old.pages.map((page, index) => {
-              if (index === lastPageIndex) {
-                return { ...page, items: [...page.items, newRow] };
-              }
-              return page;
-            }),
-          };
-        },
-      );
       queryClient.setQueryData<IBaseRow>(
         ["base-row", newRow.pageId, newRow.id],
         newRow,
       );
+      // Refetch the active view instead of appending into every cached
+      // filter. A row that fails another view's filter must not appear there.
       invalidateBaseRows(newRow.pageId);
     },
     onError: (error) => {
@@ -431,6 +419,7 @@ export function useReorderRowMutation() {
 
 type KanbanMoveCardInput = {
   pageId: string;
+  viewId: string;
   rowId: string;
   sourceColumnFilter: FilterNode | undefined;
   destColumnFilter: FilterNode | undefined;
@@ -456,12 +445,12 @@ export function useKanbanMoveCardMutation() {
         requestId: newRequestId(),
       }),
     onMutate: async (variables) => {
-      const { pageId, rowId, sourceColumnFilter, destColumnFilter, columnChanged, groupByPropertyId, destChoiceValue, position } = variables;
+      const { pageId, viewId, rowId, sourceColumnFilter, destColumnFilter, columnChanged, groupByPropertyId, destChoiceValue, position } = variables;
 
-      await queryClient.cancelQueries({ queryKey: ["base-rows", pageId] });
+      await queryClient.cancelQueries({ queryKey: ["base-rows", pageId, viewId] });
 
-      const sourceKey = baseRowsQueryKey(pageId, sourceColumnFilter, undefined);
-      const destKey = baseRowsQueryKey(pageId, destColumnFilter, undefined);
+      const sourceKey = baseRowsQueryKey(pageId, viewId, sourceColumnFilter, undefined);
+      const destKey = baseRowsQueryKey(pageId, viewId, destColumnFilter, undefined);
 
       const sourceSnapshot = queryClient.getQueryData<InfiniteData<IBaseRowsPage>>(sourceKey);
       const destSnapshot = queryClient.getQueryData<InfiniteData<IBaseRowsPage>>(destKey);
@@ -536,6 +525,7 @@ export function useKanbanMoveCardMutation() {
 
 type KanbanCreateCardInput = {
   pageId: string;
+  viewId: string;
   destColumnFilter: FilterNode | undefined;
   groupByPropertyId: string;
   columnKey: string;
@@ -559,8 +549,8 @@ export function useKanbanCreateCardMutation() {
       });
     },
     onSuccess: (newRow, variables) => {
-      const { pageId, destColumnFilter } = variables;
-      const destKey = baseRowsQueryKey(pageId, destColumnFilter, undefined);
+      const { pageId, viewId, destColumnFilter } = variables;
+      const destKey = baseRowsQueryKey(pageId, viewId, destColumnFilter, undefined);
       queryClient.setQueryData<InfiniteData<IBaseRowsPage>>(destKey, (old) => {
         if (!old) return old;
         if (rowAlreadyInCache(old, newRow.id)) return old;

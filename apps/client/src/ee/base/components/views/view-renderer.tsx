@@ -37,6 +37,8 @@ type ViewRendererProps = {
   scrollportRef: React.RefObject<HTMLDivElement>;
   aboveBand?: React.ReactNode;
   kanbanFilter?: FilterGroup | undefined;
+  viewId?: string;
+  listRefreshing?: boolean;
 };
 
 export function ViewRenderer(props: ViewRendererProps) {

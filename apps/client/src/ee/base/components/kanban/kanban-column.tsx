@@ -50,7 +50,7 @@ export function KanbanColumn({
     [viewFilter, groupByPropertyId, column.key],
   );
 
-  const rowsQuery = useBaseRowsQuery(pageId, filter, undefined);
+  const rowsQuery = useBaseRowsQuery(pageId, view.id, filter, undefined);
   const setCreateIntent = useSetAtom(
     kanbanCreateIntentAtomFamily(pageId) as PrimitiveAtom<KanbanCreateIntent>,
   );
@@ -122,10 +122,11 @@ export function KanbanColumn({
         columnKey: column.key,
         groupByPropertyId,
         destColumnFilter: filter,
+        viewId: view.id,
         position,
       });
     },
-    [column.key, filter, groupByPropertyId, rows, setCreateIntent],
+    [column.key, filter, groupByPropertyId, rows, setCreateIntent, view.id],
   );
 
   return (

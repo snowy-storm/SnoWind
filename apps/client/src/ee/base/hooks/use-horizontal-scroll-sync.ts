@@ -9,8 +9,10 @@ export function useHorizontalScrollSync<
 >(
   bodyRef: RefObject<TBody | null>,
   headerRef: RefObject<THeader | null>,
+  enabled = true,
 ): void {
   useEffect(() => {
+    if (!enabled) return;
     const body = bodyRef.current;
     const header = headerRef.current;
     if (!body || !header) return;
@@ -58,5 +60,5 @@ export function useHorizontalScrollSync<
       header.removeEventListener("wheel", onHeaderWheel);
       if (rafId !== 0) cancelAnimationFrame(rafId);
     };
-  }, [bodyRef, headerRef]);
+  }, [bodyRef, headerRef, enabled]);
 }
